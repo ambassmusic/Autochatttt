@@ -1,0 +1,60 @@
+[
+  {
+    "id": "ord_1793804869805",
+    "orderNumber": "WA-#4338",
+    "customerName": "Test Customer",
+    "customerPhone": "+234 803 999 8888",
+    "customerEmail": "alex.mercer@gmail.com",
+    "customerAddress": "88 King Street",
+    "customerCity": "King Street",
+    "customerState": "San Francisco",
+    "productType": "physical",
+    "industry": "fashion",
+    "items": [
+      {
+        "product": {
+          "id": "prod_linen_01",
+          "name": "Artisanal Linen Overshirt",
+          "category": "Apparel",
+          "industry": "fashion",
+          "price": 118,
+          "description": "Tailored relaxed-fit 100% Normandy flax linen with natural mother-of-pearl buttons. Breathable, pre-washed for soft drape.",
+          "stock": 14,
+          "productType": "physical",
+          "featured": true,
+          "sizes": [
+            "S",
+            "M",
+            "L",
+            "XL"
+          ],
+          "colors": [
+            "Oat Sand",
+            "Chalk White"
+          ],
+          "tags": [
+            "linen",
+            "shirt",
+            "overshirt",
+            "summer",
+            "apparel",
+            "bestseller"
+          ]
+        },
+        "quantity": 1,
+        "selectedSize": "L",
+        "selectedColor": "Oat Sand"
+      }
+    ],
+    "subtotal": 118,
+    "discount": 0,
+    "shipping": 0,
+    "total": 118,
+    "paymentMethod": "paystack",
+    "paymentStatus": "pending",
+    "status": "new",
+    "createdAt": "2026-11-04T15:07:49.805Z",
+    "updatedAt": "2026-11-04T15:07:49.805Z",
+    "notes": "WhatsApp automated order. Reference: WA-#4338"
+  }
+]
