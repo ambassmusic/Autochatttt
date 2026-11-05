@@ -127,19 +127,18 @@ export default function App() {
     }, 4000);
   };
 
-  // Real Firebase Authentication State Listener
+  // Real Firebase Authentication State Listener with Decoupled Fault-Isolation
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         try {
           const profile = await syncUserProfile(firebaseUser);
           if (profile) {
+            console.log("Firebase Auth State Verified: Tenant identity anchored safely:", firebaseUser.uid);
             setCurrentUser(profile);
             try {
               localStorage.setItem('omnichat_session', JSON.stringify(profile));
-            } catch {
-              // ignore
-            }
+            } catch {}
             const tierConfig = PLAN_TIER_CONFIGS[profile.planTier] || PLAN_TIER_CONFIGS.starter;
             setSettings(prev => ({
               ...prev,
@@ -155,14 +154,23 @@ export default function App() {
           console.error('Error syncing profile from Firebase:', err);
         }
       } else {
-        // Clear session if unauthenticated
-        setCurrentUser(null);
+        // Fault-tolerant session check:
+        // If the user authenticated via the decoupled backend session or email provider,
+        // preserve their active merchant context across network blips and WhatsApp drops!
         try {
-          localStorage.removeItem('omnichat_session');
-          localStorage.removeItem('omnichat_whatsapp_session');
-        } catch {
-          // ignore
-        }
+          const cachedSession = localStorage.getItem('omnichat_session');
+          if (cachedSession) {
+            const parsed = JSON.parse(cachedSession);
+            if (parsed && parsed.email) {
+              console.log('Firebase auth listener: Retaining active merchant session:', parsed.email);
+              setCurrentUser(parsed);
+              return;
+            }
+          }
+        } catch {}
+
+        // Only clear if completely unauthenticated with no local anchor
+        setCurrentUser(null);
         setActiveScreen(prev => (prev === 'superadmin' ? 'store' : prev));
       }
     });

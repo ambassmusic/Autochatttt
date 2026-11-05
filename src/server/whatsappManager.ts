@@ -1397,6 +1397,27 @@ export class WhatsAppManager {
     return this.connectUserSession(tenantId, 'PAIRING_CODE', phoneInput, { forceNewCode: forceNew });
   }
 
+  public autoSyncLinkedAccountContacts(userId: string): { success: boolean; syncedCount: number; totalContacts: number; contacts: any[] } {
+    const cleanId = this.sanitizeUserId(userId);
+    const session = this.getSession(cleanId);
+    
+    console.log(`[WhatsAppManager:${cleanId}] Running immediate real-time contacts auto-sync for linked WhatsApp account...`);
+    
+    const result = crmLeadStore.syncWhatsAppBusinessApi(cleanId);
+    
+    if (session) {
+      (session as any).lastContactsSyncTime = new Date().toISOString();
+      (session as any).contactsCount = result.contacts.length;
+    }
+
+    return {
+      success: true,
+      syncedCount: result.syncedCount,
+      totalContacts: result.contacts.length,
+      contacts: result.contacts
+    };
+  }
+
   public processAutomatedReply(tenantId: string, userText: string, customerName: string, customerPhone?: string): string {
     const catalogInfo = this.tenantCatalogs.get(tenantId);
     const storeName = catalogInfo?.storeName || 'Our WhatsApp Store';
@@ -1417,3 +1438,4 @@ export class WhatsAppManager {
 }
 
 export const whatsappManager = new WhatsAppManager();
+

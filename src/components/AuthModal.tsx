@@ -15,6 +15,7 @@ import {
   isSuperAdminEmail
 } from '../services/firebase';
 import { signInWithPopup } from 'firebase/auth';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -344,12 +345,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <p>{errorMessage}</p>
                 {errorMessage.includes('Firebase Console') && (
                   <a
-                    href="https://console.firebase.google.com/project/dazzling-champion-fc70r/authentication/providers"
+                    href={`https://console.firebase.google.com/project/${firebaseConfig.projectId || 'custom-card-fvk22'}/authentication/providers`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block mt-1 font-bold text-rose-800 underline hover:text-rose-950"
                   >
-                    Configure Firebase Auth Providers →
+                    Configure Firebase Auth Providers (Sign-in Method) →
                   </a>
                 )}
               </div>

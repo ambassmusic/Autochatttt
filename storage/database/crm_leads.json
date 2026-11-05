@@ -74,25 +74,6 @@
     "source": "whatsapp_inbound"
   },
   {
-    "id": "lead_1793810520573_rx6g",
-    "tenantId": "store_aura_main",
-    "name": "dovesparadiseentertainment",
-    "phone": "+status",
-    "stage": "lead",
-    "notes": "Auto-captured from WhatsApp incoming inquiry.",
-    "totalSpend": 0,
-    "lastActive": "Just now",
-    "assignedStaff": "AI Sales Agent",
-    "lastMessagePreview": "A notorious Bandit taking treatment in a Nigerian federal government hospital and nothing is happening.\nThese people are very protected by our governments than you that is a citizen Nigerian citizen.\nWHAT A SHAME.",
-    "tags": [
-      "whatsapp_inbound",
-      "auto_captured"
-    ],
-    "createdAt": "2026-11-04T16:42:00.573Z",
-    "updatedAt": "2026-11-04T16:42:00.573Z",
-    "source": "whatsapp_inbound"
-  },
-  {
     "id": "lead_wa_1793811024362_fruz",
     "tenantId": "store_aura_main",
     "name": "Verified Client (+8657)",
@@ -546,6 +527,216 @@
     ],
     "createdAt": "2026-11-04T16:50:24.362Z",
     "updatedAt": "2026-11-04T16:50:24.362Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793815334579_0tq7",
+    "tenantId": "store_aura_main",
+    "name": "Elena Vance",
+    "phone": "+14158902341",
+    "email": "elena.vance@example.com",
+    "stage": "vip",
+    "notes": "VIP client. Prefers linen overshirts in S & M.",
+    "totalSpend": 890,
+    "lastActive": "Just now (Synced)",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Elena Vance (Stylist))",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-04T18:02:14.579Z",
+    "updatedAt": "2026-11-04T18:02:52.386Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793815334580_f1b6",
+    "tenantId": "store_aura_main",
+    "name": "Tariq Adeleke",
+    "phone": "+2348024419920",
+    "email": "tariq.adeleke@example.com",
+    "stage": "customer",
+    "notes": "Purchased full-grain cognac leather weekender.",
+    "totalSpend": 403,
+    "lastActive": "Just now (Synced)",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Tariq Adeleke (Lagos))",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-04T18:02:14.579Z",
+    "updatedAt": "2026-11-04T18:02:52.386Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793815334580_6xa3",
+    "tenantId": "store_aura_main",
+    "name": "Liam Gallagher",
+    "phone": "+447911123456",
+    "email": "liam.gallagher@example.com",
+    "stage": "customer",
+    "notes": "Ordered artisanal sneakers size 43 chalk white.",
+    "totalSpend": 283,
+    "lastActive": "Just now (Synced)",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Liam G.)",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-04T18:02:14.579Z",
+    "updatedAt": "2026-11-04T18:02:52.386Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793815334580_99eo",
+    "tenantId": "store_aura_main",
+    "name": "Chioma Nwosu",
+    "phone": "+2348135508871",
+    "email": "chioma.nwosu@example.com",
+    "stage": "qualified",
+    "notes": "Inquired about cashmere knit restock in Chalk Sand.",
+    "totalSpend": 0,
+    "lastActive": "Just now (Synced)",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Chioma Nwosu)",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-04T18:02:14.579Z",
+    "updatedAt": "2026-11-04T18:02:52.386Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793815334580_mpt6",
+    "tenantId": "store_aura_main",
+    "name": "Sofia Rossi",
+    "phone": "+393401234567",
+    "email": "sofia.rossi@example.com",
+    "stage": "lead",
+    "notes": "Saved lookbook digital guide link from WhatsApp status.",
+    "totalSpend": 0,
+    "lastActive": "Just now (Synced)",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Sofia Rossi Milano)",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-04T18:02:14.579Z",
+    "updatedAt": "2026-11-04T18:02:52.386Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793895555395_hr9y",
+    "tenantId": "usr_1793816093812_afeca6f4",
+    "name": "Elena Vance",
+    "phone": "+14158902341",
+    "email": "elena.vance@example.com",
+    "stage": "vip",
+    "notes": "VIP client. Prefers linen overshirts in S & M.",
+    "totalSpend": 890,
+    "lastActive": "Synced from WhatsApp API",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Elena Vance (Stylist))",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-05T16:19:15.395Z",
+    "updatedAt": "2026-11-05T16:19:15.395Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793895555395_qvx3",
+    "tenantId": "usr_1793816093812_afeca6f4",
+    "name": "Tariq Adeleke",
+    "phone": "+2348024419920",
+    "email": "tariq.adeleke@example.com",
+    "stage": "customer",
+    "notes": "Purchased full-grain cognac leather weekender.",
+    "totalSpend": 403,
+    "lastActive": "Synced from WhatsApp API",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Tariq Adeleke (Lagos))",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-05T16:19:15.395Z",
+    "updatedAt": "2026-11-05T16:19:15.395Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793895555395_9fjf",
+    "tenantId": "usr_1793816093812_afeca6f4",
+    "name": "Liam Gallagher",
+    "phone": "+447911123456",
+    "email": "liam.gallagher@example.com",
+    "stage": "customer",
+    "notes": "Ordered artisanal sneakers size 43 chalk white.",
+    "totalSpend": 283,
+    "lastActive": "Synced from WhatsApp API",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Liam G.)",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-05T16:19:15.395Z",
+    "updatedAt": "2026-11-05T16:19:15.395Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793895555395_jlv1",
+    "tenantId": "usr_1793816093812_afeca6f4",
+    "name": "Chioma Nwosu",
+    "phone": "+2348135508871",
+    "email": "chioma.nwosu@example.com",
+    "stage": "qualified",
+    "notes": "Inquired about cashmere knit restock in Chalk Sand.",
+    "totalSpend": 0,
+    "lastActive": "Synced from WhatsApp API",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Chioma Nwosu)",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-05T16:19:15.395Z",
+    "updatedAt": "2026-11-05T16:19:15.395Z",
+    "source": "whatsapp_inbound"
+  },
+  {
+    "id": "lead_wa_1793895555395_636y",
+    "tenantId": "usr_1793816093812_afeca6f4",
+    "name": "Sofia Rossi",
+    "phone": "+393401234567",
+    "email": "sofia.rossi@example.com",
+    "stage": "lead",
+    "notes": "Saved lookbook digital guide link from WhatsApp status.",
+    "totalSpend": 0,
+    "lastActive": "Synced from WhatsApp API",
+    "assignedStaff": "AI Sales Specialist",
+    "lastMessagePreview": "Synced from WhatsApp Business Account (Sofia Rossi Milano)",
+    "tags": [
+      "whatsapp_api",
+      "synced_account",
+      "fashion"
+    ],
+    "createdAt": "2026-11-05T16:19:15.395Z",
+    "updatedAt": "2026-11-05T16:19:15.395Z",
     "source": "whatsapp_inbound"
   }
 ]

@@ -1,3 +1,5 @@
+import { io, Socket } from 'socket.io-client';
+
 export interface WhatsAppStatusResponse {
   tenantId: string;
   instanceName?: string;
@@ -224,6 +226,15 @@ class WhatsAppClient {
     return res.json();
   }
 
+  public async autoSyncContacts(tenantId: string): Promise<{ success: boolean; syncedCount: number; totalContacts: number; contacts: any[] }> {
+    const res = await fetch('/api/whatsapp/contacts/auto-sync', {
+      method: 'POST',
+      headers: this.getHeaders(tenantId)
+    });
+    if (!res.ok) throw new Error('Failed to auto-sync linked WhatsApp contacts');
+    return res.json();
+  }
+
   public async syncContacts(tenantId: string, industry?: string): Promise<{ success: boolean; syncedCount: number; source: string; contacts: any[] }> {
     const res = await fetch('/api/whatsapp/contacts/sync', {
       method: 'POST',
@@ -279,6 +290,87 @@ class WhatsAppClient {
     });
     if (!res.ok) throw new Error('Failed to run AI benchmark');
     return res.json();
+  }
+
+  /* ========================================================================= */
+  /* REAL-TIME SOCKET.IO STREAMING LAYER (ZERO POLLING)                        */
+  /* ========================================================================= */
+  private socket: Socket | null = null;
+
+  public getSocket(): Socket {
+    if (!this.socket) {
+      this.socket = io({
+        autoConnect: true,
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 2000
+      });
+    }
+    return this.socket;
+  }
+
+  public subscribeToTenant(
+    tenantId: string, 
+    callbacks: {
+      onStatus?: (data: { tenantId: string; status: string; phone?: string | null; verifiedName?: string | null }) => void;
+      onPairingCode?: (data: { tenantId: string; code: string }) => void;
+      onQr?: (data: { tenantId: string; qr?: string; qrDataUrl?: string }) => void;
+      onError?: (err: any) => void;
+    }
+  ): () => void {
+    const socket = this.getSocket();
+    socket.emit('join_tenant', tenantId);
+
+    const handleStatus = (data: any) => {
+      if (data.tenantId === tenantId && callbacks.onStatus) {
+        callbacks.onStatus(data);
+      }
+    };
+
+    const handlePairingCode = (data: any) => {
+      if (data.tenantId === tenantId && callbacks.onPairingCode) {
+        callbacks.onPairingCode(data);
+      }
+    };
+
+    const handleQr = (data: any) => {
+      if (data.tenantId === tenantId && callbacks.onQr) {
+        callbacks.onQr(data);
+      }
+    };
+
+    const handleError = (data: any) => {
+      if (data.tenantId === tenantId && callbacks.onError) {
+        callbacks.onError(data);
+      }
+    };
+
+    socket.on('connection_status', handleStatus);
+    socket.on('pairing_code_stream', handlePairingCode);
+    socket.on('qr_stream', handleQr);
+    socket.on('connection_error', handleError);
+
+    return () => {
+      socket.off('connection_status', handleStatus);
+      socket.off('pairing_code_stream', handlePairingCode);
+      socket.off('qr_stream', handleQr);
+      socket.off('connection_error', handleError);
+    };
+  }
+
+  public requestPairingCodeSocket(tenantId: string, phoneNumber: string): void {
+    const socket = this.getSocket();
+    socket.emit('request_pairing_code', { tenantId, phoneNumber });
+  }
+
+  public requestQrSocket(tenantId: string): void {
+    const socket = this.getSocket();
+    socket.emit('request_qr_code', { tenantId });
+  }
+
+  public disconnectSocket(tenantId: string): void {
+    const socket = this.getSocket();
+    socket.emit('disconnect_instance', { tenantId });
   }
 }
 

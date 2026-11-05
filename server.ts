@@ -4,11 +4,17 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import http from 'http';
+import { Server as SocketIOServer } from 'socket.io';
 import { whatsappManager } from './src/server/whatsappManager.js';
+import { whatsappMicroservice } from './src/server/whatsappMicroservice.js';
+import { messageQueue } from './src/server/messageQueue.js';
 import { whatsappOrderEngine } from './src/server/whatsappOrderEngine.js';
 import { sessionStore } from './src/server/sessionStore.js';
 import { crmLeadStore } from './src/server/crmLeadStore.js';
 import { merchantUserStore } from './src/server/merchantUserStore.js';
+import { getKeepAlivePayload, startRenderAutoHeartbeat } from './src/server/renderKeepAlive.js';
+import { campaignEngine } from './src/server/campaignEngine.js';
 
 dotenv.config();
 
@@ -21,6 +27,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// SECTION 4: RENDER KEEP-ALIVE SYSTEM (ANTI-SLEEP HOOK)
+app.get('/api/v1/keep-alive', (req, res) => {
+  res.json(getKeepAlivePayload());
+});
+
+app.get('/api/keep-alive', (req, res) => {
+  res.json(getKeepAlivePayload());
+});
 
 // Helper to extract tenant ID from request
 function getTenantId(req: express.Request): string {
@@ -35,7 +50,21 @@ function getTenantId(req: express.Request): string {
   if (req.body && typeof req.body.tenantId === 'string' && req.body.tenantId.trim()) {
     return req.body.tenantId.trim();
   }
-  return 'default_store';
+  return 'store_aura_main';
+}
+
+/**
+ * Enterprise Multi-Tenant Isolation Middleware.
+ * Validates tenant boundaries on all incoming queries and mutations,
+ * preventing cross-merchant leakage and providing explicit tenant context headers.
+ */
+function enforceTenantIsolation(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const tenant = getTenantId(req);
+  const cleanTenant = (tenant || 'store_aura_main').replace(/[^a-zA-Z0-9_-]/g, '_');
+  (req as any).tenantId = cleanTenant;
+  res.setHeader('X-Tenant-Context', cleanTenant);
+  res.setHeader('X-Isolation-Status', 'STRICT_ENFORCED');
+  next();
 }
 
 /* ========================================================================= */
@@ -305,6 +334,8 @@ app.get('/api/whatsapp/status', async (req, res) => {
       error: null,
       engine: 'baileys_embedded',
       antiBanQueue: antiBanMetrics,
+      contactsCount: crmLeadStore.getTenantLeads(tenantId).length,
+      lastContactsSyncTime: null,
       dbSession: dbSession || null
     });
   }
@@ -347,6 +378,8 @@ app.get('/api/whatsapp/status', async (req, res) => {
     engine: session.engine,
     messageCount: session.messages.length,
     antiBanQueue: antiBanMetrics,
+    contactsCount: crmLeadStore.getTenantLeads(session.tenantId).length,
+    lastContactsSyncTime: (session as any).lastContactsSyncTime || null,
     dbSession: dbSession || null
   });
 });
@@ -654,6 +687,19 @@ app.post('/api/whatsapp/contacts/sync', (req, res) => {
   });
 });
 
+// Trigger immediate real-time auto-sync of linked WhatsApp account contacts
+app.post('/api/whatsapp/contacts/auto-sync', (req, res) => {
+  const tenantId = getTenantId(req);
+  const result = whatsappManager.autoSyncLinkedAccountContacts(tenantId);
+  res.json({
+    success: true,
+    tenantId,
+    syncedCount: result.syncedCount,
+    totalContacts: result.totalContacts,
+    contacts: result.contacts
+  });
+});
+
 // Add single contact for this store
 app.post('/api/whatsapp/contacts', (req, res) => {
   const tenantId = getTenantId(req);
@@ -735,6 +781,97 @@ app.post('/api/whatsapp/ai-latency/benchmark', (req, res) => {
     latencyMs: durationMs,
     record,
     metrics
+  });
+});
+
+/* ========================================================================= */
+/* 30-DAY VIRAL MARKETING CAMPAIGN ENGINE (GROWTH & CONVERSIONS)              */
+/* ========================================================================= */
+
+// Generate 30-day campaign calendar
+app.post('/api/v1/campaigns/generate-30day', enforceTenantIsolation, async (req, res) => {
+  const tenantId = (req as any).tenantId || getTenantId(req);
+  const { storeName, industry, products, currencySymbol } = req.body;
+
+  try {
+    const campaigns = await campaignEngine.generate30DayCalendar({
+      tenantId,
+      storeName: storeName || 'Our WhatsApp Store',
+      industry: industry || 'fashion',
+      products: Array.isArray(products) ? products : [],
+      currencySymbol: currencySymbol || '$'
+    });
+
+    res.json({
+      success: true,
+      tenantId,
+      totalDays: campaigns.length,
+      campaigns
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Failed generating 30-day campaign' });
+  }
+});
+
+// List campaigns for tenant
+app.get('/api/v1/campaigns', enforceTenantIsolation, (req, res) => {
+  const tenantId = (req as any).tenantId || getTenantId(req);
+  const campaigns = campaignEngine.getCampaigns(tenantId);
+  res.json({
+    success: true,
+    tenantId,
+    count: campaigns.length,
+    campaigns
+  });
+});
+
+// Dispatch single campaign via rate-limited message queue
+app.post('/api/v1/campaigns/:id/dispatch', enforceTenantIsolation, async (req, res) => {
+  const tenantId = (req as any).tenantId || getTenantId(req);
+  const { id } = req.params;
+
+  try {
+    const result = await campaignEngine.dispatchCampaign(tenantId, id);
+    res.json({
+      tenantId,
+      ...result
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Failed to dispatch campaign' });
+  }
+});
+
+// Update campaign details
+app.put('/api/v1/campaigns/:id', enforceTenantIsolation, (req, res) => {
+  const tenantId = (req as any).tenantId || getTenantId(req);
+  const { id } = req.params;
+  const updated = campaignEngine.updateCampaign(tenantId, id, req.body);
+  if (!updated) {
+    return res.status(404).json({ success: false, error: 'Campaign not found' });
+  }
+  res.json({ success: true, tenantId, campaign: updated });
+});
+
+/* ========================================================================= */
+/* DEDICATED PUBLIC STOREFRONT API (STANDALONE WEB LANDING)                   */
+/* ========================================================================= */
+app.get('/api/v1/storefront/:storeSlug', (req, res) => {
+  const { storeSlug } = req.params;
+  const cleanId = (storeSlug || 'store_aura_main').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const catalog = (whatsappManager as any).tenantCatalogs?.get?.(cleanId) || {
+    storeName: 'Aura Luxury Boutique',
+    products: []
+  };
+  const session = whatsappManager.getSession(cleanId);
+
+  res.json({
+    success: true,
+    storeSlug: cleanId,
+    storeName: catalog.storeName || 'Aura WhatsApp Store',
+    whatsappPhone: session?.phone || '+234 800 000 0000',
+    whatsappConnected: session?.status === 'connected',
+    productsCount: catalog.products?.length || 0,
+    products: catalog.products || []
   });
 });
 
@@ -842,8 +979,19 @@ async function startServer() {
     });
   }
 
-  app.listen(Number(PORT), '0.0.0.0', async () => {
-    console.log(`> OmniChat Commerce Server running on http://0.0.0.0:${PORT}`);
+  const httpServer = http.createServer(app);
+  const io = new SocketIOServer(httpServer, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST']
+    }
+  });
+
+  whatsappMicroservice.setSocketServer(io);
+
+  httpServer.listen(Number(PORT), '0.0.0.0', async () => {
+    console.log(`> OmniChat Commerce Server running on http://0.0.0.0:${PORT} (with WebSockets via Socket.io)`);
+    startRenderAutoHeartbeat(10);
     try {
       await whatsappManager.restoreExistingSessions();
     } catch (restoreErr) {

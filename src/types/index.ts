@@ -445,6 +445,27 @@ export interface MarketingCampaign {
   featuredProductId?: string;
 }
 
+export interface DailyCampaignPlan {
+  id: string;
+  day: number;
+  theme: string;
+  category: 'product_spotlight' | 'flash_sale' | 'social_proof' | 'lifestyle_story' | 'vip_loyalty' | 'scarcity' | 'weekend_rush';
+  targetAudience: 'all' | 'leads' | 'buyers' | 'dormant' | 'vip';
+  scheduledTime: string;
+  hook: string;
+  caption: string;
+  callToAction: string;
+  mediaType: 'IMAGE_CARD' | 'TEXT_STORY' | 'CATALOG_CAROUSEL';
+  suggestedProductId?: string;
+  suggestedProductName?: string;
+  suggestedProductImage?: string;
+  suggestedProductPrice?: number;
+  status: 'SCHEDULED' | 'DRAFT' | 'SENT' | 'CANCELLED';
+  projectedEngagement: string;
+  lastDispatchedAt?: string;
+  dispatchedCount?: number;
+}
+
 export interface PresetStore {
   id: string;
   name: string;

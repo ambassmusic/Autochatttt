@@ -24,9 +24,8 @@ export const MULTI_INDUSTRY_PRESETS: PresetStore[] = [
         price: 118,
         originalPrice: 145,
         description: 'Tailored relaxed-fit 100% Normandy flax linen with natural mother-of-pearl buttons. Breathable, pre-washed for soft drape.',
-        image: '/src/assets/images/linen_overshirt_1793193350092.jpg',
+        image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80',
         images: [
-          '/src/assets/images/linen_overshirt_1793193350092.jpg',
           'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1589310243389-96a5483213a8?auto=format&fit=crop&w=800&q=80'
@@ -47,9 +46,8 @@ export const MULTI_INDUSTRY_PRESETS: PresetStore[] = [
         price: 285,
         originalPrice: 320,
         description: 'Handcrafted vegetable-tanned Italian leather with solid brass hardware, reinforced base, and detachable shoulder strap.',
-        image: '/src/assets/images/leather_weekender_1793193350506.jpg',
+        image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=800&q=80',
         images: [
-          '/src/assets/images/leather_weekender_1793193350506.jpg',
           'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1590874103328-eac38a683ce7?auto=format&fit=crop&w=800&q=80'
@@ -69,9 +67,8 @@ export const MULTI_INDUSTRY_PRESETS: PresetStore[] = [
         price: 165,
         originalPrice: 185,
         description: 'Buttery calfskin leather upper paired with durable Margom rubber sole and memory-foam arch support insoles.',
-        image: '/src/assets/images/artisan_sneakers_1793193350841.jpg',
+        image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80',
         images: [
-          '/src/assets/images/artisan_sneakers_1793193350841.jpg',
           'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1560769629-975ec94e6a86?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?auto=format&fit=crop&w=800&q=80'
@@ -90,9 +87,8 @@ export const MULTI_INDUSTRY_PRESETS: PresetStore[] = [
         price: 195,
         originalPrice: 240,
         description: '100% Mongolian 2-ply grade-A cashmere knit with saddle shoulder construction and rib-knit cuffs.',
-        image: '/src/assets/images/cashmere_knit_1793193352022.jpg',
+        image: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
         images: [
-          '/src/assets/images/cashmere_knit_1793193352022.jpg',
           'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1576871337622-98d48d1cf531?auto=format&fit=crop&w=800&q=80',
           'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?auto=format&fit=crop&w=800&q=80'

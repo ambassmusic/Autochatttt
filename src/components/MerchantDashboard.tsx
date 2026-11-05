@@ -29,10 +29,12 @@ import { AiLatencyMonitor } from './AiLatencyMonitor';
 import { WhatsAppContactsModule } from './WhatsAppContactsModule';
 import { whatsAppClient, WhatsAppMessageItem } from '../services/whatsappClient';
 import { saveStoreProduct, deleteStoreProduct, saveStoreSettings, isSuperAdminEmail } from '../services/firebase';
+import { MarketingCampaignEngine } from './MarketingCampaignEngine';
 
 export type MerchantMenuTab = 
   | 'storefront'       // Feature 3: WhatsApp Storefront & Add Products
   | 'ai_agent'         // Feature 1: AI Sales Agent
+  | 'marketing_campaigns' // 30-Day Viral AI Marketing Agent (Acquisition & Growth)
   | 'follow_ups'       // Feature 2: Automated Follow-ups
   | 'cart_recovery'    // Feature 4: Abandoned Cart Recovery
   | 'bookings'         // Feature 5: Booking and Reminder Automation
@@ -62,6 +64,7 @@ interface MerchantDashboardProps {
   onOpenSuperAdmin: () => void;
   onToggleMobileSimulator?: () => void;
   isMobileSimulatorActive?: boolean;
+  onOpenPublicStorefront?: (slug: string) => void;
   onToast: (msg: string) => void;
 }
 
@@ -81,6 +84,7 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
   onOpenSuperAdmin,
   onToggleMobileSimulator,
   isMobileSimulatorActive,
+  onOpenPublicStorefront,
   onToast
 }) => {
   const [activeTab, setActiveTab] = useState<MerchantMenuTab>('storefront');
@@ -276,50 +280,67 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
   const [pairingError, setPairingError] = useState<string | null>(null);
   const [activePairingTab, setActivePairingTab] = useState<'qr' | 'code'>('code');
 
-  // Polling loop when QR code or pairing code is active
+  // Persistent Event-Driven Socket.io Subscription Layer (Zero HTTP Polling)
   useEffect(() => {
-    if (realConnectionStatus !== 'qrcode' && realConnectionStatus !== 'connecting' && pairingStep !== 'pairing_code') {
-      return;
-    }
-
-    const timer = setInterval(async () => {
-      try {
-        const res = await whatsAppClient.getStatus(currentTenantId);
-        setRealConnectionStatus(res.status);
-        setRealQrCode(res.qrCode);
-        setRealQrExpiresIn(res.expiresInSeconds);
-        setRealServerEngine(res.engine);
-
-        if (res.pairingCode) {
-          setRealPairingCode(res.pairingCode);
-        }
-
-        if (res.status === 'connected' && res.phone) {
+    const unsubscribe = whatsAppClient.subscribeToTenant(currentTenantId, {
+      onStatus: (data) => {
+        const s = data.status.toLowerCase();
+        if (s === 'connected') {
+          setRealConnectionStatus('connected');
           setPairingStep('input');
           setRealPairingCode(null);
           setPairingError(null);
-          setSettings(prev => {
-            if (prev.whatsappConnected && prev.whatsappPhoneNumber === res.phone) {
-              return prev;
-            }
-            return {
+          if (data.phone) {
+            setSettings(prev => ({
               ...prev,
               whatsappConnected: true,
-              whatsappPhoneNumber: res.phone || prev.whatsappPhoneNumber
-            };
-          });
-          onToast(`✓ WhatsApp device connected successfully! Linked phone: ${res.phone}`);
-          onSendCustomWhatsAppMessage(`🟢 *Device Verified & Connected!*\n\n• Number: *${res.phone}*\n• Engine: *${res.engine === 'evolution_api' ? 'Evolution API Server' : 'Baileys Multi-Device WebSocket'}*\n• WebSockets: *Live & Operational*\n\nYour automated WhatsApp storefront is now online!`);
-        } else if (res.status === 'error') {
-          setRealConnectionError(res.error);
+              whatsappPhoneNumber: data.phone || prev.whatsappPhoneNumber
+            }));
+            onToast(`✓ WhatsApp device connected via WebSockets! Linked phone: ${data.phone}`);
+            onSendCustomWhatsAppMessage(`🟢 *Device Verified & Connected (WebSockets Active)*\n\n• Number: *${data.phone}*\n• Engine: *Baileys Microservice Gateway*\n• Architecture: *Zero Polling / Event-Driven*\n\nYour automated WhatsApp storefront is now online!`);
+            
+            // Auto-sync contacts immediately upon linked account
+            whatsAppClient.autoSyncContacts(currentTenantId).then((syncRes: any) => {
+              if (syncRes.success && Array.isArray(syncRes.contacts)) {
+                setContacts(syncRes.contacts);
+                onToast(`📥 Auto-synced ${syncRes.contacts.length} WhatsApp contacts from linked account!`);
+              }
+            }).catch(() => {});
+          }
+        } else if (s === 'disconnected') {
+          setRealConnectionStatus('disconnected');
+          setSettings(prev => ({ ...prev, whatsappConnected: false }));
+        } else if (s === 'qr_received') {
+          setRealConnectionStatus('qrcode');
+        } else if (s === 'pairing_code_received' || s === 'connecting') {
+          setRealConnectionStatus('connecting');
         }
-      } catch (err: any) {
-        // network polling
+      },
+      onPairingCode: (data) => {
+        setRealPairingCode(data.code);
+        setPairingStep('pairing_code');
+        setRealConnectionStatus('connecting');
+        setPairingExpiresIn(160);
+        setIsRequestingPairingCode(false);
+        onToast(`⚡ Received real-time pairing code over WebSockets: ${data.code}`);
+      },
+      onQr: (data) => {
+        if (data.qrDataUrl) {
+          setRealQrCode(data.qrDataUrl);
+          setRealConnectionStatus('qrcode');
+          setRealQrExpiresIn(60);
+        }
+      },
+      onError: (err) => {
+        setRealConnectionError(err.error || 'Connection error');
+        setIsRequestingPairingCode(false);
       }
-    }, 2500);
+    });
 
-    return () => clearInterval(timer);
-  }, [realConnectionStatus, pairingStep, currentTenantId]);
+    return () => {
+      unsubscribe();
+    };
+  }, [currentTenantId]);
 
   // Countdown timer for QR expiration
   useEffect(() => {
@@ -1283,6 +1304,24 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
               </span>
             </button>
 
+            {/* 30-Day Viral AI Marketing Campaign Engine */}
+            <button
+              onClick={() => handleSelectTab('marketing_campaigns')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium transition-all ${
+                activeTab === 'marketing_campaigns' 
+                  ? 'bg-indigo-50 text-indigo-900 font-bold border border-indigo-200/80 shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <span>30-Day AI Marketing</span>
+              </div>
+              <span className="font-mono text-[9px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-bold">
+                VIRAL
+              </span>
+            </button>
+
             {/* Orders CRM */}
             <button
               onClick={() => handleSelectTab('orders')}
@@ -1558,6 +1597,7 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
                 <h1 className="text-sm font-bold text-slate-900 capitalize">
                   {activeTab === 'storefront' && 'WhatsApp Storefront & Catalog'}
                   {activeTab === 'ai_agent' && '24/7 AI Sales Agent'}
+                  {activeTab === 'marketing_campaigns' && '30-Day Viral AI Marketing Agent'}
                   {activeTab === 'follow_ups' && 'Automated Enquiry Follow-ups'}
                   {activeTab === 'cart_recovery' && 'Abandoned Cart Recovery Engine'}
                   {activeTab === 'bookings' && 'Booking & Reminder Automation'}
@@ -1575,6 +1615,23 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
                 <span className="hidden sm:inline text-xs text-slate-500 font-medium">
                   {settings.storeName}
                 </span>
+
+                {/* Direct Public Web Storefront Landing Button */}
+                <button
+                  onClick={() => {
+                    if (onOpenPublicStorefront) {
+                      onOpenPublicStorefront(activeStoreId);
+                    } else {
+                      window.open(`/store/${activeStoreId}`, '_blank');
+                    }
+                  }}
+                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-bold shadow-xs transition-colors cursor-pointer"
+                  title="Visit Standalone Public Storefront URL (/store/:store_slug)"
+                >
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Public Store Web URL</span>
+                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                </button>
               </div>
             </div>
           </div>
@@ -1996,6 +2053,18 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ================= VIRAL 30-DAY AI MARKETING AGENT ================= */}
+          {activeTab === 'marketing_campaigns' && (
+            <MarketingCampaignEngine
+              tenantId={currentTenantId}
+              storeName={settings.storeName || 'Aura WhatsApp Store'}
+              industry={settings.industry}
+              products={products}
+              currencySymbol="$"
+              onToast={onToast}
+            />
           )}
 
           {/* ================= FEATURE 2: AUTOMATED FOLLOW-UPS ================= */}

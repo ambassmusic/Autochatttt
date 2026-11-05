@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@supabase/supabase-js": "^2.119.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
@@ -26,6 +27,8 @@
     "qrcode": "^1.5.4",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
     "vite": "^8.3.0"
   },
   "devDependencies": {
