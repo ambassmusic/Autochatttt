@@ -18,6 +18,7 @@ import { MerchantDashboard } from './components/MerchantDashboard';
 import { LandingPage } from './components/LandingPage';
 import { SuperAdminConsole } from './components/SuperAdminConsole';
 import { AuthModal } from './components/AuthModal';
+import { PublicStorefront } from './components/PublicStorefront';
 import { sounds } from './utils/audio';
 import { whatsAppClient } from './services/whatsappClient';
 import { 
@@ -25,8 +26,6 @@ import {
   ArrowRight, LayoutDashboard, User, Database, Cloud
 } from 'lucide-react';
 import { 
-  auth,
-  onAuthStateChanged,
   logoutUser,
   syncUserProfile,
   isSuperAdminEmail,
@@ -35,8 +34,10 @@ import {
   saveStoreOrder, 
   saveStoreProduct, 
   saveStoreSettings, 
-  loadStoreSettings 
-} from './services/firebase';
+  loadStoreSettings,
+  supabase
+} from './services/supabaseService';
+import { onSupabaseAuthStateChange } from './services/supabaseClient';
 
 // Helper to read persistent user session from localStorage
 const getPersistedSession = (): AuthUser | null => {
@@ -54,7 +55,16 @@ const getPersistedSession = (): AuthUser | null => {
 export default function App() {
   // Navigation / View State with session recovery
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(getPersistedSession);
-  const [activeScreen, setActiveScreen] = useState<'landing' | 'store' | 'superadmin'>(() => {
+  const [currentStoreSlug, setCurrentStoreSlug] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/store/')) {
+      return window.location.pathname.replace('/store/', '').trim() || 'store_aura_main';
+    }
+    return 'store_aura_main';
+  });
+  const [activeScreen, setActiveScreen] = useState<'landing' | 'store' | 'superadmin' | 'public_storefront'>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/store')) {
+      return 'public_storefront';
+    }
     const session = getPersistedSession();
     if (session) {
       // Permitted system administrators can enter the superadmin portal
@@ -127,14 +137,14 @@ export default function App() {
     }, 4000);
   };
 
-  // Real Firebase Authentication State Listener with Decoupled Fault-Isolation
+  // Real Supabase Authentication State Listener with Decoupled Fault-Isolation
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
+    const { unsubscribe } = onSupabaseAuthStateChange(async (session, supabaseUser) => {
+      if (supabaseUser) {
         try {
-          const profile = await syncUserProfile(firebaseUser);
+          const profile = await syncUserProfile(supabaseUser);
           if (profile) {
-            console.log("Firebase Auth State Verified: Tenant identity anchored safely:", firebaseUser.uid);
+            console.log("Supabase Auth Verified: Tenant identity anchored safely:", supabaseUser.id);
             setCurrentUser(profile);
             try {
               localStorage.setItem('omnichat_session', JSON.stringify(profile));
@@ -151,7 +161,7 @@ export default function App() {
             }));
           }
         } catch (err) {
-          console.error('Error syncing profile from Firebase:', err);
+          console.error('Error syncing profile from Supabase:', err);
         }
       } else {
         // Fault-tolerant session check:
@@ -162,7 +172,7 @@ export default function App() {
           if (cachedSession) {
             const parsed = JSON.parse(cachedSession);
             if (parsed && parsed.email) {
-              console.log('Firebase auth listener: Retaining active merchant session:', parsed.email);
+              console.log('Retaining active merchant session:', parsed.email);
               setCurrentUser(parsed);
               return;
             }
@@ -698,6 +708,13 @@ export default function App() {
                 }}
                 onToggleMobileSimulator={() => setIsMobileSimulatorActive(!isMobileSimulatorActive)}
                 isMobileSimulatorActive={isMobileSimulatorActive}
+                onOpenPublicStorefront={(slug) => {
+                  setCurrentStoreSlug(slug || currentUser?.id || 'store_aura_main');
+                  setActiveScreen('public_storefront');
+                  if (typeof window !== 'undefined') {
+                    window.history.pushState({}, '', `/store/${slug || currentUser?.id || 'store_aura_main'}`);
+                  }
+                }}
                 onToast={showToast}
               />
             </div>
@@ -730,6 +747,25 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* VIEW 4: DEDICATED PUBLIC STOREFRONT WEB LANDING (/store/:store_slug) */}
+      {activeScreen === 'public_storefront' && (
+        <PublicStorefront
+          storeSlug={currentStoreSlug}
+          storeName={settings.storeName || 'Aura Luxury Boutique'}
+          storeTagline={settings.storeTagline || 'Curated Modern Fashion & Artisanal Goods'}
+          whatsappPhone={settings.whatsappPhoneNumber || '+234 803 999 8888'}
+          products={products}
+          currencySymbol="$"
+          onBackToDashboard={() => {
+            setActiveScreen('store');
+            if (typeof window !== 'undefined') {
+              window.history.pushState({}, '', '/');
+            }
+          }}
+          onToast={showToast}
+        />
       )}
 
       {/* Authentication Modal */}

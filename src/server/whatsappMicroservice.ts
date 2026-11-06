@@ -567,7 +567,7 @@ export class WhatsAppMicroservice {
 
       // If Supabase is connected, upsert batch
       if (supabase && supabaseRows.length > 0) {
-        supabase.from('contacts').upsert(supabaseRows, { onConflict: 'store_id,jid' }).then(() => {}).catch(() => {});
+        Promise.resolve(supabase.from('contacts').upsert(supabaseRows, { onConflict: 'store_id,jid' })).catch(() => {});
       }
 
       // Yield event loop to prevent event loop starvation

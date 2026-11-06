@@ -6,16 +6,12 @@ import {
 import { AuthUser, BusinessIndustry, StoredUserAccount, AuthProvidersConfig, PlanTier } from '../types';
 import { INITIAL_STORED_ACCOUNTS, INITIAL_AUTH_PROVIDERS } from '../data/initialData';
 import { 
-  auth, 
-  googleProvider, 
   syncUserProfile,
   loginWithEmail,
   registerWithEmail,
   loginWithGoogle,
   isSuperAdminEmail
-} from '../services/firebase';
-import { signInWithPopup } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+} from '../services/supabaseService';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -121,27 +117,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setGoogleLoading(true);
 
     try {
-      const { user, profile } = await loginWithGoogle();
-      const isSuperAdmin = isSuperAdminEmail(user.email);
-      const authUser: AuthUser = {
-        id: user.uid,
-        name: user.displayName || user.email?.split('@')[0] || 'Merchant',
-        email: user.email || '',
-        role: isSuperAdmin ? 'superadmin' : 'merchant',
-        businessName: (profile as any)?.storeName || (profile as any)?.businessName || `${user.displayName || 'My'} Store`,
-        industry: ((profile as any)?.industry as BusinessIndustry) || 'fashion',
-        planTier: ((profile as any)?.planTier as PlanTier) || 'starter'
-      };
-      setSuccessMessage('Connected with Google successfully!');
-      setTimeout(() => {
-        persistSessionAndAuthenticate(authUser);
-      }, 350);
+      await loginWithGoogle();
+      setSuccessMessage('Redirecting to Google Authentication via Supabase...');
     } catch (popupErr: any) {
-      console.warn('Firebase signInWithPopup error:', popupErr);
+      console.warn('Google authentication note:', popupErr);
       if (popupErr.code === 'auth/popup-closed-by-user') {
         setErrorMessage('Google Sign-In was cancelled.');
       } else {
-        setErrorMessage(popupErr.message || 'Failed to authenticate with Google.');
+        setErrorMessage(popupErr.message || 'Failed to authenticate with Google. You can sign in using your email and password.');
       }
     } finally {
       setGoogleLoading(false);
@@ -343,16 +326,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
               <div className="flex-1 leading-relaxed">
                 <p>{errorMessage}</p>
-                {errorMessage.includes('Firebase Console') && (
-                  <a
-                    href={`https://console.firebase.google.com/project/${firebaseConfig.projectId || 'custom-card-fvk22'}/authentication/providers`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-1 font-bold text-rose-800 underline hover:text-rose-950"
-                  >
-                    Configure Firebase Auth Providers (Sign-in Method) →
-                  </a>
-                )}
               </div>
             </div>
           )}

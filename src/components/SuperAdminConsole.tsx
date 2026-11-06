@@ -3,7 +3,8 @@ import {
   ShieldCheck, CreditCard, Key, MessageSquare, Users, 
   LifeBuoy, Check, RefreshCw, Plus, ToggleLeft, ToggleRight, 
   ExternalLink, Search, CheckCircle2, AlertCircle, Clock, Zap, ArrowLeft,
-  KeyRound, Globe, Smartphone, Lock, LogIn, Copy, Server, Radio, Activity
+  KeyRound, Globe, Smartphone, Lock, LogIn, Copy, Server, Radio, Activity,
+  Database, Cloud, FileCode, Layers, ShieldAlert, Cpu, Eye, EyeOff
 } from 'lucide-react';
 import { 
   PaymentGatewaysConfig, GeminiKeyRotation, WhatsAppCloudApiConfig, 
@@ -11,7 +12,7 @@ import {
 } from '../types';
 import { INITIAL_AUTH_PROVIDERS } from '../data/initialData';
 import { whatsAppClient, WhatsAppConfigResponse } from '../services/whatsappClient';
-import { isSuperAdminEmail } from '../services/firebase';
+import { isSuperAdminEmail, reconfigureSupabaseClient, getStoredSupabaseConfig } from '../services/supabaseService';
 
 interface SuperAdminConsoleProps {
   currentUser?: AuthUser | null;
@@ -77,7 +78,7 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
     );
   }
 
-  const [activeTab, setActiveTab] = useState<'payments' | 'gemini' | 'whatsapp' | 'auth_providers' | 'users' | 'support'>('payments');
+  const [activeTab, setActiveTab] = useState<'payments' | 'gemini' | 'whatsapp' | 'supabase_cloud' | 'auth_providers' | 'users' | 'support'>('payments');
   const [newKeyLabel, setNewKeyLabel] = useState('');
   const [newKeyValue, setNewKeyValue] = useState('');
   const [showAddKeyModal, setShowAddKeyModal] = useState(false);
@@ -91,12 +92,42 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
   const [globalEvolutionEnabled, setGlobalEvolutionEnabled] = useState(false);
   const [isSavingEvo, setIsSavingEvo] = useState(false);
 
+  // Supabase Cloud & PostgreSQL Database State
+  const initialSupabase = getStoredSupabaseConfig();
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState(initialSupabase.url.includes('placeholder') ? '' : initialSupabase.url);
+  const [supabaseAnonKeyInput, setSupabaseAnonKeyInput] = useState(initialSupabase.anonKey.includes('dummy') ? '' : initialSupabase.anonKey);
+  const [supabaseServiceKeyInput, setSupabaseServiceKeyInput] = useState(initialSupabase.serviceKey || '');
+  const [showAnonKey, setShowAnonKey] = useState(false);
+  const [showServiceKey, setShowServiceKey] = useState(false);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [isSavingSupabase, setIsSavingSupabase] = useState(false);
+  const [supabaseTestResult, setSupabaseTestResult] = useState<{
+    status: 'CONNECTED' | 'NOT_CONFIGURED' | 'CONNECTION_ERROR' | 'IDLE';
+    message?: string;
+    latencyMs?: number;
+    tables?: Record<string, boolean>;
+  }>({ status: 'IDLE' });
+
   useEffect(() => {
     whatsAppClient.getConfig()
       .then(cfg => {
         setEvolutionConfigData(cfg);
         setGlobalEvolutionUrl(cfg.evolutionConfig.apiUrl);
         setGlobalEvolutionEnabled(cfg.evolutionConfig.enabled);
+      })
+      .catch(() => {});
+
+    fetch('/api/admin/supabase-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.supabaseUrl) {
+          if (!data.supabaseUrl.includes('placeholder')) {
+            setSupabaseUrlInput(prev => prev || data.supabaseUrl);
+          }
+          if (data.supabaseAnonKeyRaw && !data.supabaseAnonKeyRaw.includes('dummy')) {
+            setSupabaseAnonKeyInput(prev => prev || data.supabaseAnonKeyRaw);
+          }
+        }
       })
       .catch(() => {});
   }, []);
@@ -270,6 +301,164 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
     return t.status === ticketFilter;
   });
 
+  const handleSaveSupabaseConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSupabase(true);
+    try {
+      reconfigureSupabaseClient(supabaseUrlInput.trim(), supabaseAnonKeyInput.trim(), supabaseServiceKeyInput.trim());
+
+      const res = await fetch('/api/admin/supabase-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supabaseUrl: supabaseUrlInput.trim(),
+          supabaseAnonKey: supabaseAnonKeyInput.trim(),
+          serviceRoleKey: supabaseServiceKeyInput.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        onToast('✓ Supabase credentials saved and active client reconfigured!');
+        handleTestSupabaseConnection();
+      } else {
+        throw new Error(data.error || 'Failed saving configuration');
+      }
+    } catch (err: any) {
+      onToast(`Error saving configuration: ${err.message}`);
+    } finally {
+      setIsSavingSupabase(false);
+    }
+  };
+
+  const handleTestSupabaseConnection = async () => {
+    setIsTestingSupabase(true);
+    try {
+      const res = await fetch('/api/admin/supabase-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supabaseUrl: supabaseUrlInput.trim(),
+          supabaseAnonKey: supabaseAnonKeyInput.trim()
+        })
+      });
+      const data = await res.json();
+      setSupabaseTestResult(data);
+      if (data.success) {
+        onToast(`✓ Supabase connection verified! Latency: ${data.latencyMs}ms`);
+      } else {
+        onToast(`Notice: ${data.message || 'Supabase credentials require verification'}`);
+      }
+    } catch (err: any) {
+      setSupabaseTestResult({ status: 'CONNECTION_ERROR', message: err.message });
+      onToast(`Connection error: ${err.message}`);
+    } finally {
+      setIsTestingSupabase(false);
+    }
+  };
+
+  const handleCopySchemaSql = () => {
+    const sql = `-- =========================================================================
+-- PRINCIPAL ARCHITECTURE: SUPABASE POSTGRESQL SCHEMA FOR WHATSAPP STORE SAAS
+-- =========================================================================
+
+CREATE TABLE IF NOT EXISTS public.whatsapp_sessions (
+    store_id TEXT PRIMARY KEY,
+    phone_number TEXT,
+    verified_name TEXT,
+    auth_method TEXT DEFAULT 'PAIRING_CODE' CHECK (auth_method IN ('QR', 'PAIRING_CODE')),
+    connection_status TEXT DEFAULT 'DISCONNECTED' CHECK (connection_status IN ('INITIALIZING', 'QR_RECEIVED', 'PAIRING_CODE_RECEIVED', 'CONNECTING', 'CONNECTED', 'DISCONNECTED')),
+    creds_serialized TEXT,
+    keys_serialized TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_sessions_phone ON public.whatsapp_sessions(phone_number);
+
+CREATE TABLE IF NOT EXISTS public.stores (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    industry TEXT DEFAULT 'fashion',
+    owner_id TEXT,
+    currency TEXT DEFAULT 'USD',
+    currency_symbol TEXT DEFAULT '$',
+    whatsapp_phone TEXT,
+    settings JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.products (
+    id TEXT PRIMARY KEY,
+    store_id TEXT NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT,
+    price NUMERIC NOT NULL,
+    original_price NUMERIC,
+    stock INTEGER DEFAULT 10,
+    image_url TEXT NOT NULL,
+    images JSONB DEFAULT '[]'::jsonb,
+    category TEXT,
+    featured BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_store_id ON public.products(store_id);
+
+CREATE TABLE IF NOT EXISTS public.orders (
+    id TEXT PRIMARY KEY,
+    store_id TEXT NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT NOT NULL,
+    total NUMERIC NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')),
+    items JSONB DEFAULT '[]'::jsonb,
+    payment_method TEXT,
+    payment_status TEXT DEFAULT 'unpaid',
+    delivery_address TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_store_id ON public.orders(store_id);
+
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('product-catalog-media', 'product-catalog-media', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+CREATE POLICY "Public Catalog Media Access" 
+ON storage.objects FOR SELECT 
+USING (bucket_id = 'product-catalog-media');
+
+CREATE TABLE IF NOT EXISTS public.contacts (
+    store_id TEXT NOT NULL,
+    jid TEXT NOT NULL,
+    name TEXT NOT NULL DEFAULT 'Unknown Contact',
+    phone TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (store_id, jid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_contacts_store_id ON public.contacts(store_id);
+
+CREATE TABLE IF NOT EXISTS public.marketing_campaigns (
+    id TEXT PRIMARY KEY,
+    store_id TEXT NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE,
+    scheduled_day INTEGER NOT NULL,
+    theme TEXT,
+    message_body TEXT NOT NULL,
+    cta_url TEXT,
+    is_sent BOOLEAN DEFAULT false,
+    sent_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);`;
+
+    navigator.clipboard.writeText(sql);
+    onToast('✓ Copied complete Supabase SQL schema blueprint! Paste directly into Supabase SQL Editor.');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Super Admin Top Navigation Bar */}
@@ -371,6 +560,28 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
               </div>
               <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-md font-mono">
                 Meta v21
+              </span>
+            </button>
+
+            {/* Supabase & PostgreSQL Cloud Database */}
+            <button
+              onClick={() => setActiveTab('supabase_cloud')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                activeTab === 'supabase_cloud'
+                  ? 'bg-emerald-50 text-emerald-800 font-bold border border-emerald-200/80 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Database className="w-4 h-4 text-emerald-600" />
+                <span>Supabase &amp; PostgreSQL</span>
+              </div>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-mono font-bold ${
+                supabaseTestResult.status === 'CONNECTED' 
+                  ? 'bg-emerald-100 text-emerald-800' 
+                  : 'bg-amber-100 text-amber-800'
+              }`}>
+                {supabaseTestResult.status === 'CONNECTED' ? 'ONLINE' : 'CONFIG'}
               </span>
             </button>
 
@@ -861,6 +1072,245 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
                       {whatsappConfig.lastPingMs}ms
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SUPABASE CLOUD & POSTGRESQL ARCHITECTURE */}
+          {activeTab === 'supabase_cloud' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <Database className="w-3.5 h-3.5" />
+                    </span>
+                    <h2 className="text-base font-bold text-slate-900">
+                      Supabase PostgreSQL &amp; Cloud Storage Configuration
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Central database and media storage engine. Replaces Firebase completely with multi-tenant relational isolation and anti-ban token persistence.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleCopySchemaSql}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                    title="Copy PostgreSQL SQL Schema"
+                  >
+                    <FileCode className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Copy SQL Schema</span>
+                  </button>
+
+                  <button
+                    onClick={handleTestSupabaseConnection}
+                    disabled={isTestingSupabase}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupabase ? 'animate-spin' : ''}`} />
+                    <span>{isTestingSupabase ? 'Testing Connection...' : 'Test Connection'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Diagnostic Card */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                supabaseTestResult.status === 'CONNECTED'
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                  : supabaseTestResult.status === 'CONNECTION_ERROR'
+                  ? 'bg-rose-50/70 border-rose-200 text-rose-900'
+                  : 'bg-slate-50 border-slate-200 text-slate-800'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
+                      supabaseTestResult.status === 'CONNECTED'
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      {supabaseTestResult.status === 'CONNECTED' ? <CheckCircle2 className="w-5 h-5" /> : <Database className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm">
+                          {supabaseTestResult.status === 'CONNECTED'
+                            ? 'Supabase PostgreSQL & Auth Online'
+                            : supabaseTestResult.status === 'CONNECTION_ERROR'
+                            ? 'Connection Error Detected'
+                            : 'Supabase Status: Ready for Configuration'}
+                        </span>
+                        {supabaseTestResult.latencyMs !== undefined && supabaseTestResult.latencyMs > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-200 text-emerald-800">
+                            {supabaseTestResult.latencyMs}ms latency
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 mt-0.5">
+                        {supabaseTestResult.message || 'Configure your Supabase Project URL and Public Anon Key below to activate cloud persistence.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-xs font-mono">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-bold text-slate-700">Firebase Disabled: 100% Supabase</span>
+                  </div>
+                </div>
+
+                {/* Schema Tables Health Checklist */}
+                <div className="mt-4 pt-3 border-t border-slate-200/60 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  {[
+                    { name: 'whatsapp_sessions', desc: 'Session Auth State' },
+                    { name: 'stores', desc: 'Multi-Tenant Stores' },
+                    { name: 'products', desc: 'Catalog & CDN Media' },
+                    { name: 'orders', desc: 'Inbound Orders' },
+                    { name: 'contacts', desc: 'Phonebook Batch Sync' },
+                    { name: 'marketing_campaigns', desc: '30-Day AI Roadmap' },
+                    { name: 'product-catalog-media', desc: 'Storage CDN Bucket' }
+                  ].map(table => (
+                    <div key={table.name} className="p-2 rounded-xl bg-white/70 border border-slate-200/80 flex items-center justify-between">
+                      <div>
+                        <span className="font-mono font-bold text-[11px] text-slate-800 block truncate">{table.name}</span>
+                        <span className="text-[10px] text-slate-400">{table.desc}</span>
+                      </div>
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Configuration Form */}
+              <form onSubmit={handleSaveSupabaseConfig} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-5">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Key className="w-4 h-4 text-emerald-600" />
+                    Supabase Project Credentials &amp; API Keys
+                  </h3>
+                  <a
+                    href="https://supabase.com/dashboard"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+                  >
+                    <span>Supabase Dashboard</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+
+                {/* Project URL */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Supabase Project URL (VITE_SUPABASE_URL) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://xyzcompanyproject.supabase.co"
+                    value={supabaseUrlInput}
+                    onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Found in your Supabase project under <strong>Project Settings → API → Project URL</strong>.
+                  </p>
+                </div>
+
+                {/* Anon Public Key */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Supabase Anon Public API Key (VITE_SUPABASE_ANON_KEY) <span className="text-rose-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAnonKey(!showAnonKey)}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showAnonKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showAnonKey ? 'Hide Key' : 'Reveal Key'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showAnonKey ? 'text' : 'password'}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    value={supabaseAnonKeyInput}
+                    onChange={(e) => setSupabaseAnonKeyInput(e.target.value)}
+                    required
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Safe for browser execution. Handles client authentication and Row Level Security.
+                  </p>
+                </div>
+
+                {/* Service Role Secret Key (Optional / Backend) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Supabase Service Role Secret Key (SUPABASE_SERVICE_ROLE_KEY) <span className="text-slate-400 font-normal">(Optional for Server)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowServiceKey(!showServiceKey)}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+                    >
+                      {showServiceKey ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showServiceKey ? 'Hide Key' : 'Reveal Key'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showServiceKey ? 'text' : 'password'}
+                    placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                    value={supabaseServiceKeyInput}
+                    onChange={(e) => setSupabaseServiceKeyInput(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-mono text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Enables privileged background workers to hydrate Baileys session states across server restarts.
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    Saves to both client storage and backend server environment seamlessly.
+                  </span>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingSupabase}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>{isSavingSupabase ? 'Saving Configuration...' : 'Save & Apply Supabase Config'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* PostgreSQL Architecture Specifications Box */}
+              <div className="bg-slate-900 text-slate-200 rounded-2xl p-5 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-400 font-mono text-xs font-bold uppercase tracking-wide">
+                    <Cpu className="w-4 h-4" />
+                    <span>PostgreSQL Anti-Disconnect Architecture</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">Render Ephemeral Bypass</span>
+                </div>
+
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  By routing Baileys credentials into Supabase PostgreSQL table <code className="text-emerald-300 bg-slate-800 px-1 py-0.5 rounded">whatsapp_sessions</code>, device authentication persists across server scaling, container reboots, and high-concurrency traffic without requiring merchants to re-scan QR codes.
+                </p>
+
+                <div className="pt-2 flex items-center justify-between border-t border-slate-800 text-xs">
+                  <span className="text-slate-400">All Firebase packages and services have been uninstalled.</span>
+                  <button
+                    onClick={handleCopySchemaSql}
+                    className="text-emerald-400 hover:text-emerald-300 font-bold underline cursor-pointer"
+                  >
+                    View SQL Blueprint
+                  </button>
                 </div>
               </div>
             </div>

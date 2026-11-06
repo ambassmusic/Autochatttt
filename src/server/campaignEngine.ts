@@ -29,7 +29,7 @@ export class CampaignEngine {
     const { tenantId, storeName, industry, products, currencySymbol = '$' } = config;
     const cleanId = this.sanitizeTenantId(tenantId);
 
-    const safeProducts = products.length > 0 ? products : [
+    const safeProducts: Product[] = products.length > 0 ? products : [
       {
         id: 'prod_default_1',
         name: 'Signature Collection Item',
@@ -39,7 +39,11 @@ export class CampaignEngine {
         description: 'Our most requested artisanal piece.',
         image: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80',
         industry: 'fashion' as BusinessIndustry,
-        productType: 'physical' as const
+        productType: 'physical' as const,
+        sizes: ['S', 'M', 'L'],
+        colors: ['Classic', 'Neutral'],
+        featured: true,
+        tags: ['Signature', 'Bestseller']
       }
     ];
 
@@ -197,9 +201,9 @@ export class CampaignEngine {
     let targetLeads = leads;
 
     if (campaign.targetAudience === 'leads') {
-      targetLeads = leads.filter(l => l.stage === 'lead' || l.stage === 'enquired');
+      targetLeads = leads.filter(l => l.stage === 'lead' || l.stage === 'qualified');
     } else if (campaign.targetAudience === 'buyers') {
-      targetLeads = leads.filter(l => l.stage === 'customer' || l.ordersCount > 0);
+      targetLeads = leads.filter(l => l.stage === 'customer' || l.totalSpend > 0);
     } else if (campaign.targetAudience === 'vip') {
       targetLeads = leads.filter(l => l.stage === 'vip' || l.totalSpend > 200);
     }
@@ -209,16 +213,18 @@ export class CampaignEngine {
       targetLeads = leads.length > 0 ? leads : [
         {
           id: 'lead_seed_1',
+          tenantId: cleanId,
           name: 'Active Customer',
           phone: '+234 803 123 4567',
           email: 'customer@example.com',
-          industry: 'fashion',
           stage: 'lead',
           totalSpend: 0,
-          ordersCount: 0,
           lastActive: 'Just now',
           notes: 'Auto-captured marketing lead',
-          assignedStaff: 'AI Sales Specialist'
+          assignedStaff: 'AI Sales Specialist',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          source: 'whatsapp_inbound'
         }
       ];
     }

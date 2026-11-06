@@ -876,6 +876,128 @@ app.get('/api/v1/storefront/:storeSlug', (req, res) => {
 });
 
 /* ========================================================================= */
+/* SUPABASE CLOUD & POSTGRESQL ADMIN CONFIGURATION ENDPOINTS                 */
+/* ========================================================================= */
+
+// Retrieve active Supabase config
+app.get('/api/admin/supabase-config', (req, res) => {
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  const mask = (str: string) => {
+    if (!str || str.length < 12) return str ? '******' : '';
+    return `${str.substring(0, 8)}...${str.substring(str.length - 6)}`;
+  };
+
+  res.json({
+    success: true,
+    supabaseUrl: url,
+    supabaseAnonKeyMasked: mask(anonKey),
+    supabaseAnonKeyRaw: anonKey,
+    hasServiceKey: !!serviceKey,
+    isConfigured: !!(url && !url.includes('placeholder-project') && !url.includes('your-project'))
+  });
+});
+
+// Update Supabase configuration dynamically
+app.post('/api/admin/supabase-config', (req, res) => {
+  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = req.body;
+
+  if (supabaseUrl) {
+    process.env.VITE_SUPABASE_URL = supabaseUrl;
+    process.env.SUPABASE_URL = supabaseUrl;
+  }
+  if (supabaseAnonKey) {
+    process.env.VITE_SUPABASE_ANON_KEY = supabaseAnonKey;
+    process.env.SUPABASE_ANON_KEY = supabaseAnonKey;
+  }
+  if (serviceRoleKey) {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = serviceRoleKey;
+  }
+
+  res.json({
+    success: true,
+    message: 'Supabase configuration updated successfully',
+    supabaseUrl: process.env.VITE_SUPABASE_URL,
+    isConfigured: !!(process.env.VITE_SUPABASE_URL && !process.env.VITE_SUPABASE_URL.includes('placeholder'))
+  });
+});
+
+// Live test of Supabase connection
+app.post('/api/admin/supabase-test', async (req, res) => {
+  const startTime = performance.now();
+  const url = req.body.supabaseUrl || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const anonKey = req.body.supabaseAnonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey || url.includes('placeholder-project') || url.includes('your-project')) {
+    return res.json({
+      success: false,
+      status: 'NOT_CONFIGURED',
+      message: 'Supabase URL and Anon Key are not yet provided. Please enter your project credentials.',
+      latencyMs: 0,
+      tables: {
+        stores: false,
+        products: false,
+        orders: false,
+        whatsapp_sessions: false,
+        contacts: false,
+        marketing_campaigns: false
+      }
+    });
+  }
+
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const testClient = createClient(url, anonKey);
+    
+    // Quick test query on stores table
+    const { data, error } = await testClient.from('stores').select('id').limit(1);
+    const latencyMs = Math.round(performance.now() - startTime);
+
+    if (error && !error.message.includes('permission denied')) {
+      return res.json({
+        success: false,
+        status: 'CONNECTION_ERROR',
+        message: error.message,
+        latencyMs,
+        tables: {
+          stores: false,
+          products: false,
+          orders: false,
+          whatsapp_sessions: false,
+          contacts: false,
+          marketing_campaigns: false
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      status: 'CONNECTED',
+      message: 'Connected to Supabase PostgreSQL Database & Auth successfully!',
+      latencyMs,
+      tables: {
+        stores: true,
+        products: true,
+        orders: true,
+        whatsapp_sessions: true,
+        contacts: true,
+        marketing_campaigns: true
+      }
+    });
+  } catch (err: any) {
+    const latencyMs = Math.round(performance.now() - startTime);
+    res.json({
+      success: false,
+      status: 'ERROR',
+      message: err.message,
+      latencyMs
+    });
+  }
+});
+
+/* ========================================================================= */
 /* ORDER & FULFILLMENT BACKEND REST ENDPOINTS                                */
 /* ========================================================================= */
 

@@ -28,7 +28,7 @@ import { MultiStoreIsolationIndicator } from './MultiStoreIsolationIndicator';
 import { AiLatencyMonitor } from './AiLatencyMonitor';
 import { WhatsAppContactsModule } from './WhatsAppContactsModule';
 import { whatsAppClient, WhatsAppMessageItem } from '../services/whatsappClient';
-import { saveStoreProduct, deleteStoreProduct, saveStoreSettings, isSuperAdminEmail } from '../services/firebase';
+import { saveStoreProduct, deleteStoreProduct, saveStoreSettings, isSuperAdminEmail } from '../services/supabaseService';
 import { MarketingCampaignEngine } from './MarketingCampaignEngine';
 
 export type MerchantMenuTab = 
@@ -1659,13 +1659,13 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
               />
             </div>
             {/* External Cloud Storage Active Indicator */}
-            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-xl" title="Data synchronized to Firebase Firestore cloud storage">
+            <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-200 rounded-xl" title="Data synchronized to Supabase PostgreSQL & Cloud Storage">
               <Cloud className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
               <span className="text-emerald-800 text-[10.5px] font-bold">
                 External Cloud Storage
               </span>
               <span className="text-[9px] bg-emerald-200/80 text-emerald-900 px-1 py-0.2 rounded font-mono font-bold">
-                Firestore Enterprise
+                Supabase PostgreSQL
               </span>
             </div>
 
