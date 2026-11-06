@@ -1,1 +1,86 @@
-[]
+[
+  {
+    "id": "admin_didyndiadan",
+    "email": "didyndiadan@gmail.com",
+    "name": "Super Admin",
+    "businessName": "OmniChat Cloud Platform",
+    "industry": "fashion",
+    "country": "United States",
+    "role": "superadmin",
+    "planTier": "enterprise",
+    "passwordHash": "34a7a4f3c9bb3b10442993046b661392b9cad7bbdfb53b9da8899a964b68fcc88bf490e846d7f5ae9e858c3a5431d48aec3b7a3cab2a7906bcd559f9443fc5fe",
+    "salt": "d3b3fbec198adb01b0549ca487506655",
+    "createdAt": "2026-11-06T09:15:31.623Z",
+    "updatedAt": "2026-11-06T09:15:31.623Z"
+  },
+  {
+    "id": "admin_admin",
+    "email": "admin@omnichat.ai",
+    "name": "Root Administrator",
+    "businessName": "OmniChat Platform",
+    "industry": "fashion",
+    "country": "United States",
+    "role": "superadmin",
+    "planTier": "enterprise",
+    "passwordHash": "9a78ad360b968bd200f3318abdf6667dc6379e4914509a31711d0a84688b348855566c23ceed3036e23808c9ea435aa7886cf1d88fe6b74de9d54f726ae1957b",
+    "salt": "a2960c1a3752e2a361ecc5c09145af03",
+    "createdAt": "2026-11-06T09:15:31.631Z",
+    "updatedAt": "2026-11-06T09:15:31.631Z"
+  },
+  {
+    "id": "admin_weightlosstipsinside",
+    "email": "weightlosstipsinside@gmail.com",
+    "name": "Operations Admin",
+    "businessName": "OmniChat Systems",
+    "industry": "fashion",
+    "country": "United States",
+    "role": "superadmin",
+    "planTier": "enterprise",
+    "passwordHash": "32520bc4812d6d98bb563ad511889c10af0eedd1a40b477d3f5bae0d31e7f1a07e0e1a23216d24d0ac394ef0727bd91bc3ac3d642ba3779d1b98718b8e9e9a60",
+    "salt": "82482d51a5b609495b9ad78e9c292fdf",
+    "createdAt": "2026-11-06T09:15:31.639Z",
+    "updatedAt": "2026-11-06T09:15:31.639Z"
+  },
+  {
+    "id": "admin_musicben92",
+    "email": "musicben92@gmail.com",
+    "name": "Technical Admin",
+    "businessName": "OmniChat Infrastructure",
+    "industry": "fashion",
+    "country": "United States",
+    "role": "superadmin",
+    "planTier": "enterprise",
+    "passwordHash": "da1911c3cbda26206f7babe4410eac13b899812baf8b2353d8bed388c5874abb563a5a6c93339effe1de3c560bfb0d8d57a260267d16e76d7a0fb23cbf87dcf7",
+    "salt": "a9bd4fe49285db5a487bba47746945c3",
+    "createdAt": "2026-11-06T09:15:31.648Z",
+    "updatedAt": "2026-11-06T09:15:31.648Z"
+  },
+  {
+    "id": "usr_1793956548218_64811bc7",
+    "email": "storeowner_test1@gmail.com",
+    "name": "Test Merchant",
+    "businessName": "Test Store",
+    "industry": "fashion",
+    "country": "United States",
+    "role": "merchant",
+    "planTier": "starter",
+    "passwordHash": "51a0978f6d8bf4a015d818cfa1f956ed51d4fdcb5d5ea1d0769cbcaf123c17bb76753097744ff9615b4311ecab0330b7b31abf2828f505994359e35d4dab2abc",
+    "salt": "8acf4db7acfb39808a8f3a764592e72c",
+    "createdAt": "2026-11-06T09:15:48.218Z",
+    "updatedAt": "2026-11-06T09:15:48.218Z"
+  },
+  {
+    "id": "usr_1793956554040_be55ad1c",
+    "email": "storeowner_test2@gmail.com",
+    "name": "Test Merchant",
+    "businessName": "Test Merchant's Store",
+    "industry": "fashion",
+    "country": "United States",
+    "role": "merchant",
+    "planTier": "starter",
+    "passwordHash": "85f10d7815ed38c7a992ae7b014c87ee3c32c78a9072a4ae51d032ec14ac350604483e5af76c0fb5fc260b93fc2fc1cc969a2b3a94c6a0d763489fed85dba496",
+    "salt": "a1ba8f47d56c893ceb3d23519ec48711",
+    "createdAt": "2026-11-06T09:15:54.040Z",
+    "updatedAt": "2026-11-06T09:15:54.040Z"
+  }
+]

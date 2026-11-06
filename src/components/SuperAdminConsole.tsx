@@ -52,26 +52,22 @@ export const SuperAdminConsole: React.FC<SuperAdminConsoleProps> = ({
   // STRICT SECURITY GUARD: Only the designated root system admins may view this console
   if (!isSuperAdminEmail(currentUser?.email)) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl space-y-5">
-          <div className="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center">
-            <Lock className="w-8 h-8" />
+      <div className="min-h-screen bg-white text-slate-900 flex items-center justify-center p-6">
+        <div className="max-w-md w-full text-center space-y-4">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
+            <Lock className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-white">403 Unauthorized Access</h1>
-            <p className="text-sm text-slate-400 mt-2 leading-relaxed">
-              The Super Admin Portal is strictly restricted to authorized system administrators (<span className="text-emerald-400 font-mono text-xs">weightlosstipsinside@gmail.com</span>).
-            </p>
-            <p className="text-xs text-slate-500 mt-1">
-              Logged in as: <span className="font-semibold text-slate-300">{currentUser?.email || 'Anonymous Guest'}</span>
+            <h1 className="text-2xl font-extrabold text-slate-900">Page Not Found</h1>
+            <p className="text-sm text-slate-500 mt-1">
+              The page you are looking for does not exist or has been moved.
             </p>
           </div>
           <button
             onClick={onBackToApp}
-            className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold text-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
+            className="py-2.5 px-5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-xs transition-colors cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Return to Merchant Workspace</span>
+            Return to Homepage
           </button>
         </div>
       </div>

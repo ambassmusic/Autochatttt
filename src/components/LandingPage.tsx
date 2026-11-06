@@ -11,13 +11,11 @@ import { BusinessIndustry } from '../types';
 interface LandingPageProps {
   onOpenAuth: (initialMode?: 'login' | 'register' | 'google') => void;
   onLaunchDemo: (industry?: BusinessIndustry) => void;
-  onOpenAdmin?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({ 
   onOpenAuth, 
-  onLaunchDemo, 
-  onOpenAdmin 
+  onLaunchDemo 
 }) => {
   const [selectedIndustry, setSelectedIndustry] = useState<BusinessIndustry>('food');
   const [activeDemoStep, setActiveDemoStep] = useState<number>(1);

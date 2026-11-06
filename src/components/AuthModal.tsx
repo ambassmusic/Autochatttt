@@ -470,7 +470,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       Sign up for free
                     </h2>
                     <p className="text-xs text-slate-600 mt-1">
-                      Create your private WhatsApp store account powered by Firebase Authentication
+                      Create your private WhatsApp store account powered by Supabase Authentication
                     </p>
                   </div>
 

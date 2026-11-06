@@ -45,27 +45,31 @@ export async function useSupabaseAuthState(storeId: string): Promise<{
     const keys = new Map<string, any>();
 
     // 1. Attempt to re-hydrate active session tokens from Supabase PostgreSQL table
-    try {
-      const { data, error } = await supabase
-        .from('whatsapp_sessions')
-        .select('*')
-        .eq('store_id', cleanStoreId)
-        .maybeSingle();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('whatsapp_sessions')
+          .select('*')
+          .eq('store_id', cleanStoreId)
+          .maybeSingle();
 
-      if (!error && data && data.creds_serialized) {
-        creds = JSON.parse(data.creds_serialized, BufferJSON.reviver);
-        if (data.keys_serialized) {
-          const parsedKeys = JSON.parse(data.keys_serialized, BufferJSON.reviver);
-          for (const [k, v] of Object.entries(parsedKeys)) {
-            keys.set(k, v);
+        if (!error && data && data.creds_serialized) {
+          creds = JSON.parse(data.creds_serialized, BufferJSON.reviver);
+          if (data.keys_serialized) {
+            const parsedKeys = JSON.parse(data.keys_serialized, BufferJSON.reviver);
+            for (const [k, v] of Object.entries(parsedKeys)) {
+              keys.set(k, v);
+            }
           }
+          console.log(`[SupabaseAuthState] Rehydrated credentials from PostgreSQL for store: ${cleanStoreId}`);
+        } else {
+          console.log(`[SupabaseAuthState] No prior session in PostgreSQL for ${cleanStoreId}. Initialized fresh auth creds.`);
         }
-        console.log(`[SupabaseAuthState] Rehydrated credentials from PostgreSQL for store: ${cleanStoreId}`);
-      } else {
-        console.log(`[SupabaseAuthState] No prior session in PostgreSQL for ${cleanStoreId}. Initialized fresh auth creds.`);
+      } catch (dbErr: any) {
+        console.warn(`[SupabaseAuthState] PostgreSQL check note for ${cleanStoreId}:`, dbErr.message);
       }
-    } catch (dbErr: any) {
-      console.warn(`[SupabaseAuthState] PostgreSQL check note for ${cleanStoreId}:`, dbErr.message);
+    } else {
+      console.warn(`[SupabaseAuthState] Supabase client offline: using memory session store for ${cleanStoreId}`);
     }
 
     entry = {
@@ -100,15 +104,17 @@ export async function useSupabaseAuthState(storeId: string): Promise<{
         };
 
         // Upsert directly into Supabase PostgreSQL whatsapp_sessions table
-        const { error } = await supabase
-          .from('whatsapp_sessions')
-          .upsert(recordPayload, { onConflict: 'store_id' });
+        if (supabase) {
+          const { error } = await supabase
+            .from('whatsapp_sessions')
+            .upsert(recordPayload, { onConflict: 'store_id' });
 
-        if (error) {
-          // Log without crashing in-memory active socket connection
-          console.warn(`[SupabaseAuthState] PostgreSQL session upsert notice: ${error.message}`);
-        } else {
-          entry.lastSavedAt = Date.now();
+          if (error) {
+            // Log without crashing in-memory active socket connection
+            console.warn(`[SupabaseAuthState] PostgreSQL session upsert notice: ${error.message}`);
+          } else {
+            entry.lastSavedAt = Date.now();
+          }
         }
       } catch (err: any) {
         console.warn(`[SupabaseAuthState] Debounced persist error: ${err.message}`);
@@ -170,18 +176,20 @@ export async function clearSupabaseAuthState(storeId: string): Promise<void> {
   const cleanStoreId = storeId.replace(/[^a-zA-Z0-9_-]/g, '_');
   sessionMemoryStore.delete(cleanStoreId);
 
-  try {
-    const { error } = await supabase
-      .from('whatsapp_sessions')
-      .delete()
-      .eq('store_id', cleanStoreId);
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from('whatsapp_sessions')
+        .delete()
+        .eq('store_id', cleanStoreId);
 
-    if (error) {
-      console.warn(`[SupabaseAuthState] Session flush note for ${cleanStoreId}: ${error.message}`);
-    } else {
-      console.log(`[SupabaseAuthState] Purged PostgreSQL session for store: ${cleanStoreId}`);
+      if (error) {
+        console.warn(`[SupabaseAuthState] Session flush note for ${cleanStoreId}: ${error.message}`);
+      } else {
+        console.log(`[SupabaseAuthState] Purged PostgreSQL session for store: ${cleanStoreId}`);
+      }
+    } catch (err: any) {
+      console.error(`[SupabaseAuthState] Error flushing session from Supabase:`, err);
     }
-  } catch (err: any) {
-    console.error(`[SupabaseAuthState] Error flushing session from Supabase:`, err);
   }
 }

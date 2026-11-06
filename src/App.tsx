@@ -191,8 +191,7 @@ export default function App() {
   // Strict route guard: Ensure non-admins are immediately kicked out of the superadmin view
   useEffect(() => {
     if (activeScreen === 'superadmin' && !isSuperAdminEmail(currentUser?.email)) {
-      setActiveScreen('store');
-      showToast('Access Denied: Super Admin console is restricted to system administrator.');
+      setActiveScreen('landing');
     }
   }, [activeScreen, currentUser]);
 
@@ -528,9 +527,9 @@ export default function App() {
       monthlyAiRepliesLimit: tierConfig.maxAiReplies
     }));
 
-    if (user.role === 'superadmin') {
+    if (user.role === 'superadmin' || isSuperAdminEmail(user.email)) {
       setActiveScreen('superadmin');
-      showToast(`Welcome back, ${user.name}! Super Admin Console unlocked.`);
+      showToast(`Welcome back, ${user.name}!`);
     } else {
       setActiveScreen('store');
       handleSwitchIndustry(user.industry);
@@ -585,7 +584,6 @@ export default function App() {
             if (ind) handleSwitchIndustry(ind);
             setActiveScreen('store');
           }}
-          onOpenAdmin={() => setActiveScreen('superadmin')}
         />
       )}
 
