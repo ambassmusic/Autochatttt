@@ -133,6 +133,42 @@ export const MULTI_INDUSTRY_PRESETS: PresetStore[] = [
     currencySymbol: '$',
     products: [
       {
+        id: 'prod_salmon_01',
+        name: 'Grilled Salmon Fillet',
+        category: 'Main Dishes',
+        industry: 'food',
+        price: 36,
+        description: 'Seared fillet with lime, asparagus & greens, wild-caught Pacific salmon.',
+        image: 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=800&q=80',
+        images: [
+          'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80'
+        ],
+        sizes: ['Grilled (Charred)', 'Pan-seared'],
+        colors: ['Lemon butter sauce (+ $2)', 'Side garden salad (+ $4)'],
+        stock: 35,
+        featured: true,
+        tags: ['salmon', 'main', 'seafood', 'dinner', 'grilled']
+      },
+      {
+        id: 'prod_margherita_02',
+        name: 'Margherita Wood Pizza',
+        category: 'Main Dishes',
+        industry: 'food',
+        price: 24,
+        description: 'San Marzano tomatoes, buffalo mozzarella & basil, blistered crust.',
+        image: 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=800&q=80',
+        images: [
+          'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=800&q=80',
+          'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=800&q=80'
+        ],
+        sizes: ['12-inch Individual', '16-inch Sharing (+ $6)'],
+        colors: ['Original Sourdough', 'Gluten-Free (+ $3)'],
+        stock: 50,
+        featured: true,
+        tags: ['pizza', 'margherita', 'italian', 'wood-fired']
+      },
+      {
         id: 'prod_pizza_01',
         name: 'San Marzano Truffle Burrata Pizza',
         category: 'Wood-Fired Pizza',
