@@ -6,3 +6,8 @@ coverage/
 *.log
 .env*
 !.env.example
+sessions/
+storage/
+public/assets/aistudio/
+*.lock
+server.js

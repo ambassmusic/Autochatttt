@@ -652,17 +652,17 @@ export const INITIAL_BOT_SETTINGS: BotSettings = {
     stripe: {
       enabled: true,
       testMode: false,
-      publishableKey: 'pk_live_51M0982KaLpz8901Yt',
-      secretKey: 'sk_live_51M0982KaLpz9948201Z',
-      webhookSecret: 'whsec_981204892018402',
+      publishableKey: 'demo_stripe_pub_key',
+      secretKey: 'demo_stripe_sec_key',
+      webhookSecret: 'whsec_demo_hash_example',
       enableApplePay: true,
       verified: true
     },
     paystack: {
       enabled: true,
       testMode: false,
-      publicKey: 'pk_live_8910482019842001a',
-      secretKey: 'sk_live_7710482019842991b',
+      publicKey: 'demo_paystack_pub_key',
+      secretKey: 'demo_paystack_sec_key',
       currency: 'NGN',
       verified: true
     },
@@ -869,17 +869,17 @@ export const INITIAL_PAYMENT_GATEWAYS: PaymentGatewaysConfig = {
   paystack: {
     enabled: true,
     testMode: false,
-    publicKey: 'pk_live_891a27e04f9810b4290c0b3291882',
-    secretKey: 'sk_live_••••••••••••••••••••••••••••••••',
+    publicKey: 'demo_paystack_pub_key',
+    secretKey: 'demo_paystack_sec_key',
     webhookSecret: 'whsec_paystack_88921a',
     supportedCurrencies: ['NGN', 'USD', 'GHS', 'ZAR', 'KES']
   },
   flutterwave: {
     enabled: true,
     testMode: false,
-    publicKey: 'FLWPUBK-892109280a91823901b-X',
-    secretKey: 'FLWSECK-••••••••••••••••••••••••••••••••',
-    encryptionKey: 'FLWENCRK-••••••••••••••••',
+    publicKey: 'FLWPUBK-demo_key-X',
+    secretKey: 'FLWSECK-demo_secret',
+    encryptionKey: 'FLWENCRK-demo_encrypt',
     webhookSecret: 'flw_wh_secret_99812',
     supportedCurrencies: ['NGN', 'KES', 'GHS', 'USD', 'EUR', 'GBP']
   },
@@ -894,8 +894,8 @@ export const INITIAL_PAYMENT_GATEWAYS: PaymentGatewaysConfig = {
   },
   stripe: {
     enabled: true,
-    publishableKey: 'pk_live_51M08920198283019823',
-    secretKey: 'sk_live_••••••••••••••••••••••••••••••••'
+    publishableKey: 'demo_stripe_pub_key',
+    secretKey: 'demo_stripe_sec_key'
   }
 };
 
@@ -903,7 +903,7 @@ export const INITIAL_GEMINI_KEYS: GeminiKeyRotation[] = [
   {
     id: 'key_primary',
     label: 'Primary Gemini 2.5 Flash Production Key',
-    keyPreview: 'AIzaSyC490...18209aB',
+    keyPreview: 'GEMINI_PROD_TIER1_ACTIVE',
     model: 'gemini-2.5-flash',
     status: 'active',
     totalRequests: 14209,
@@ -914,7 +914,7 @@ export const INITIAL_GEMINI_KEYS: GeminiKeyRotation[] = [
   {
     id: 'key_rotational_02',
     label: 'Rotational Tier 2 Key (Failover & Burst)',
-    keyPreview: 'AIzaSyB810...90234zL',
+    keyPreview: 'GEMINI_ROTATION_TIER2_ACTIVE',
     model: 'gemini-2.5-flash',
     status: 'active',
     totalRequests: 6840,
@@ -925,7 +925,7 @@ export const INITIAL_GEMINI_KEYS: GeminiKeyRotation[] = [
   {
     id: 'key_rotational_03',
     label: 'Rotational Tier 3 Key (Standby Backup)',
-    keyPreview: 'AIzaSyD731...48911wQ',
+    keyPreview: 'GEMINI_STANDBY_TIER3',
     model: 'gemini-2.5-flash',
     status: 'standby',
     totalRequests: 890,

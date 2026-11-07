@@ -2855,6 +2855,18 @@ export const MerchantDashboard: React.FC<MerchantDashboardProps> = ({
                 </div>
               </div>
 
+              {/* SECTION 2: TARGET STATUS INDICATOR CARD */}
+              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border ${
+                settings.whatsappConnected 
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-300' 
+                  : (realConnectionStatus === 'connecting' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300')
+              }`}>
+                <span className="h-2.5 w-2.5 rounded-full bg-current animate-pulse"></span>
+                <p className="text-sm font-semibold">
+                  WhatsApp Profile Status: {settings.whatsappConnected ? 'Online & Synchronized' : (realConnectionStatus === 'connecting' ? 'Connecting...' : 'Offline - Device Unlinked')}
+                </p>
+              </div>
+
               {/* REAL BAILEYS MULTI-DEVICE WHATSAPP CONNECTION HUB */}
               <div className="space-y-4">
 

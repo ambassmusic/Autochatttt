@@ -163,3 +163,15 @@ export class WhatsAppMessageQueue extends EventEmitter {
 }
 
 export const messageQueue = new WhatsAppMessageQueue();
+
+/**
+ * Compatibility adapter for Section 1 target payload implementation
+ * Supports: await messageRateQueue.add('dispatch-outbound', { jid: customerJid, payload });
+ */
+export const messageRateQueue = {
+  add: async (_jobName: string, data: { jid: string; payload: any; tenantId?: string }) => {
+    const tenant = data.tenantId || 'store_aura_main';
+    return messageQueue.enqueue(tenant, data.jid, data.payload, { priority: 'normal' });
+  }
+};
+

@@ -34,14 +34,24 @@ export function getStoredSupabaseConfig(): { url: string; anonKey: string; servi
     url = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || 
           process.env.VITE_SUPABASE_URL || 
           process.env.SUPABASE_URL || 
-          'https://placeholder-project.supabase.co';
+          'https://tdafafmuflygakcdhfyq.supabase.co';
   }
 
   if (!anonKey) {
     anonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || 
+              (typeof import.meta !== 'undefined' && (import.meta as any).env?.SUPABASE_PUBLISHABLE_KEY) ||
               process.env.VITE_SUPABASE_ANON_KEY || 
               process.env.SUPABASE_ANON_KEY || 
-              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_anon_key_for_client_bootstrap';
+              process.env.SUPABASE_PUBLISHABLE_KEY ||
+              'sb_publishable_euR_JMQky1z5Yx-a1ibNkw_tvGg-7OG';
+  }
+
+  if (!serviceKey) {
+    serviceKey = (typeof import.meta !== 'undefined' && (import.meta as any).env?.SUPABASE_SERVICE_ROLE_KEY) ||
+                 (typeof import.meta !== 'undefined' && (import.meta as any).env?.SUPABASE_SECRET_KEY) ||
+                 process.env.SUPABASE_SERVICE_ROLE_KEY ||
+                 process.env.SUPABASE_SECRET_KEY ||
+                 '';
   }
 
   return { url, anonKey, serviceKey };

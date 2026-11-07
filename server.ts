@@ -7,8 +7,8 @@ import dotenv from 'dotenv';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { whatsappManager } from './src/server/whatsappManager.js';
-import { whatsappMicroservice } from './src/server/whatsappMicroservice.js';
-import { messageQueue } from './src/server/messageQueue.js';
+import { whatsappMicroservice, sendTargetStoreLayout } from './src/server/whatsappMicroservice.js';
+import { messageQueue, messageRateQueue } from './src/server/messageQueue.js';
 import { whatsappOrderEngine } from './src/server/whatsappOrderEngine.js';
 import { sessionStore } from './src/server/sessionStore.js';
 import { crmLeadStore } from './src/server/crmLeadStore.js';
@@ -17,7 +17,40 @@ import { getKeepAlivePayload, startRenderAutoHeartbeat } from './src/server/rend
 import { campaignEngine } from './src/server/campaignEngine.js';
 import { supabase } from './src/config/supabase.js';
 
+export { sendTargetStoreLayout, messageRateQueue };
+
 dotenv.config();
+
+// Load persistent Supabase configuration if saved by admin
+try {
+  const configFile = path.resolve(process.cwd(), 'storage', 'database', 'supabase_config.json');
+  if (fs.existsSync(configFile)) {
+    const raw = fs.readFileSync(configFile, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed.supabaseUrl) {
+      process.env.VITE_SUPABASE_URL = parsed.supabaseUrl;
+      process.env.SUPABASE_URL = parsed.supabaseUrl;
+    }
+    if (parsed.supabaseAnonKey) {
+      process.env.VITE_SUPABASE_ANON_KEY = parsed.supabaseAnonKey;
+      process.env.SUPABASE_ANON_KEY = parsed.supabaseAnonKey;
+      process.env.SUPABASE_PUBLISHABLE_KEY = parsed.supabaseAnonKey;
+    }
+    if (parsed.serviceRoleKey) {
+      process.env.SUPABASE_SERVICE_ROLE_KEY = parsed.serviceRoleKey;
+      process.env.SUPABASE_SECRET_KEY = parsed.serviceRoleKey;
+    }
+    if (parsed.databaseUrl) {
+      process.env.DATABASE_URL = parsed.databaseUrl;
+      process.env.POSTGRES_URL = parsed.databaseUrl;
+    }
+    if (parsed.jwksUrl) {
+      process.env.SUPABASE_JWKS_URL = parsed.jwksUrl;
+    }
+  }
+} catch (cfgErr) {
+  console.warn('Failed reading persistent supabase_config.json:', cfgErr);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -914,9 +947,22 @@ app.get('/api/v1/storefront/:storeSlug', (req, res) => {
 
 // Retrieve active Supabase config
 app.get('/api/admin/supabase-config', (req, res) => {
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-  const anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  let url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  let anonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
+  let serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+
+  // Fallback to persisted config on disk if not set in memory
+  if (!url || !anonKey) {
+    try {
+      const cfgPath = path.resolve(process.cwd(), 'storage', 'database', 'supabase_config.json');
+      if (fs.existsSync(cfgPath)) {
+        const stored = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        if (stored.supabaseUrl) url = stored.supabaseUrl;
+        if (stored.supabaseAnonKey) anonKey = stored.supabaseAnonKey;
+        if (stored.serviceRoleKey) serviceKey = stored.serviceRoleKey;
+      }
+    } catch {}
+  }
 
   const mask = (str: string) => {
     if (!str || str.length < 12) return str ? '******' : '';
@@ -935,7 +981,7 @@ app.get('/api/admin/supabase-config', (req, res) => {
 
 // Update Supabase configuration dynamically
 app.post('/api/admin/supabase-config', (req, res) => {
-  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = req.body;
+  const { supabaseUrl, supabaseAnonKey, serviceRoleKey, databaseUrl } = req.body;
 
   if (supabaseUrl) {
     process.env.VITE_SUPABASE_URL = supabaseUrl;
@@ -944,14 +990,39 @@ app.post('/api/admin/supabase-config', (req, res) => {
   if (supabaseAnonKey) {
     process.env.VITE_SUPABASE_ANON_KEY = supabaseAnonKey;
     process.env.SUPABASE_ANON_KEY = supabaseAnonKey;
+    process.env.SUPABASE_PUBLISHABLE_KEY = supabaseAnonKey;
   }
   if (serviceRoleKey) {
     process.env.SUPABASE_SERVICE_ROLE_KEY = serviceRoleKey;
+    process.env.SUPABASE_SECRET_KEY = serviceRoleKey;
+  }
+  if (databaseUrl) {
+    // Automatically sanitize / URL-encode raw '@' in passwords if provided
+    const sanitizedDbUrl = databaseUrl.includes('@@!') 
+      ? databaseUrl.replace('@@!', '%40%40!')
+      : databaseUrl;
+    process.env.DATABASE_URL = sanitizedDbUrl;
+    process.env.POSTGRES_URL = sanitizedDbUrl;
+  }
+
+  try {
+    const configDir = path.resolve(process.cwd(), 'storage', 'database');
+    if (!fs.existsSync(configDir)) fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(path.join(configDir, 'supabase_config.json'), JSON.stringify({
+      supabaseUrl: process.env.VITE_SUPABASE_URL,
+      supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY,
+      serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+      databaseUrl: process.env.DATABASE_URL || '',
+      jwksUrl: process.env.SUPABASE_JWKS_URL || '',
+      updatedAt: new Date().toISOString()
+    }, null, 2), 'utf-8');
+  } catch (saveErr) {
+    console.error('Failed saving supabase_config.json:', saveErr);
   }
 
   res.json({
     success: true,
-    message: 'Supabase configuration updated successfully',
+    message: 'Supabase configuration updated and persisted successfully',
     supabaseUrl: process.env.VITE_SUPABASE_URL,
     isConfigured: !!(process.env.VITE_SUPABASE_URL && !process.env.VITE_SUPABASE_URL.includes('placeholder'))
   });
@@ -960,8 +1031,32 @@ app.post('/api/admin/supabase-config', (req, res) => {
 // Live test of Supabase connection
 app.post('/api/admin/supabase-test', async (req, res) => {
   const startTime = performance.now();
-  const url = req.body.supabaseUrl || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const anonKey = req.body.supabaseAnonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+  let url = req.body.supabaseUrl || process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  let anonKey = req.body.supabaseAnonKey || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !anonKey) {
+    try {
+      const cfgPath = path.resolve(process.cwd(), 'storage', 'database', 'supabase_config.json');
+      if (fs.existsSync(cfgPath)) {
+        const stored = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        if (stored.supabaseUrl) {
+          url = stored.supabaseUrl;
+          process.env.VITE_SUPABASE_URL = stored.supabaseUrl;
+          process.env.SUPABASE_URL = stored.supabaseUrl;
+        }
+        if (stored.supabaseAnonKey) {
+          anonKey = stored.supabaseAnonKey;
+          process.env.VITE_SUPABASE_ANON_KEY = stored.supabaseAnonKey;
+          process.env.SUPABASE_ANON_KEY = stored.supabaseAnonKey;
+          process.env.SUPABASE_PUBLISHABLE_KEY = stored.supabaseAnonKey;
+        }
+        if (stored.serviceRoleKey) {
+          process.env.SUPABASE_SERVICE_ROLE_KEY = stored.serviceRoleKey;
+          process.env.SUPABASE_SECRET_KEY = stored.serviceRoleKey;
+        }
+      }
+    } catch {}
+  }
 
   if (!url || !anonKey || url.includes('placeholder-project') || url.includes('your-project')) {
     return res.json({

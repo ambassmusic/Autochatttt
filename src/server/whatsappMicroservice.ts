@@ -12,11 +12,12 @@ import pino from 'pino';
 import { Server as SocketIOServer } from 'socket.io';
 import { useDatabaseAuthState, clearDatabaseAuthState } from './databaseAuthState';
 import { useSupabaseAuthState, clearSupabaseAuthState } from './supabaseAuthState';
-import { messageQueue } from './messageQueue';
+import { messageQueue, messageRateQueue } from './messageQueue.js';
 import { crmLeadStore } from './crmLeadStore';
 import { whatsappOrderEngine } from './whatsappOrderEngine';
 import { supabase } from '../services/supabaseClient';
 import { Product } from '../types';
+import { INITIAL_PRODUCTS } from '../data/initialData.js';
 
 export type WhatsAppLifecycleStatus = 
   | 'INITIALIZING' 
@@ -394,6 +395,50 @@ export class WhatsAppMicroservice {
       const storeName = catalogInfo?.storeName || 'Aura Store';
       const currencySymbol = catalogInfo?.currencySymbol || '$';
 
+      const cleanText = text.trim();
+      const lower = cleanText.toLowerCase();
+
+      // Check if user is asking for catalog / menu / products / greetings or clicking catalog button
+      const isCatalogRequest = 
+        lower === 'catalog' || 
+        lower === 'menu' || 
+        lower === 'products' || 
+        lower === 'store' || 
+        lower === 'items' || 
+        lower === 'hi' || 
+        lower === 'hello' || 
+        lower === 'hey' || 
+        lower === 'view_full_catalog' || 
+        lower === 'start' || 
+        lower.includes('show menu') || 
+        lower.includes('see catalog') || 
+        lower.includes('what do you sell');
+
+      // Check if user clicked a quick action button e.g. CHECK_prod_123 or BUY_prod_123
+      if (cleanText.startsWith('CHECK_') || cleanText.startsWith('BUY_')) {
+        const prodId = cleanText.replace(/^(CHECK_|BUY_)/, '').trim();
+        const activeProds = products && products.length > 0 ? products : INITIAL_PRODUCTS;
+        const found = activeProds.find(p => p.id === prodId || p.id.toLowerCase() === prodId.toLowerCase());
+        if (found) {
+          const actionCaption = cleanText.startsWith('BUY_')
+            ? `⚡ *Instant Checkout Selection: ${found.name}*\n\n💰 Price: ${currencySymbol}${found.price.toLocaleString()}\n📦 Ready for immediate fulfillment.\n\nReply with *CONFIRM* to place your order or reply with your delivery address!`
+            : `🔎 *Product Overview: ${found.name}*\n\n📌 ${found.description}\n\n💰 Price: ${currencySymbol}${found.price.toLocaleString()}\n🔢 Status: ${found.stock > 0 ? '✓ In Stock' : '✓ Available'}\n\n👉 Reply *BUY ${found.id}* to order now!`;
+          await this.sendProductCard(tenantId, remoteJid, found, actionCaption, currencySymbol);
+          continue;
+        }
+      }
+
+      if (isCatalogRequest) {
+        let storeMetadata = {
+          id: tenantId,
+          store_name: storeName,
+          description: 'WhatsApp Online Store & Doorstep Delivery'
+        };
+        const activeProds = products && products.length > 0 ? products : INITIAL_PRODUCTS;
+        await this.sendTargetStoreLayout(tenantId, remoteJid, storeMetadata, activeProds);
+        continue;
+      }
+
       // Process automated order/recommendation engine
       const botResponse = whatsappOrderEngine.processMessage(
         tenantId,
@@ -404,13 +449,107 @@ export class WhatsAppMicroservice {
         storeName
       );
 
-      // Check if response contains a product highlight that should be sent with pristine CDN image
-      if (botResponse.productCard) {
+      // Check if response contains catalog items or product highlight
+      if (botResponse.catalogItems && botResponse.catalogItems.length > 0) {
+        const storeMetadata = {
+          id: tenantId,
+          store_name: storeName,
+          description: 'WhatsApp Online Store & Doorstep Delivery'
+        };
+        await this.sendTargetStoreLayout(tenantId, remoteJid, storeMetadata, products.length > 0 ? products : INITIAL_PRODUCTS);
+      } else if (botResponse.productCard) {
         await this.sendProductCard(tenantId, remoteJid, botResponse.productCard.product, botResponse.productCard.caption, currencySymbol);
       } else {
         await this.sendMessage(tenantId, remoteJid, botResponse.replyText);
       }
     }
+  }
+
+  /**
+   * SECTION 1: TARGET CHATFLOW PAYLOAD IMPLEMENTATION
+   * Unified store layout with rich contextInfo.externalAdReply linked to public store URL,
+   * interactive menu list and quick action reply buttons.
+   */
+  public async sendTargetStoreLayout(
+    tenantId: string,
+    customerJid: string,
+    storeMetadata: { id: string; store_name: string; description?: string },
+    productsList: any[]
+  ): Promise<any> {
+    const cleanId = this.sanitizeTenantId(tenantId);
+    const jid = customerJid.includes('@') ? customerJid : `${customerJid.replace(/\D/g, '')}@s.whatsapp.net`;
+    const safeProducts = productsList && productsList.length > 0 ? productsList : INITIAL_PRODUCTS;
+
+    // 1. Compile the Interactive Multi-Option Row items from the Supabase Products collection
+    const productRows = safeProducts.slice(0, 10).map((product) => ({
+      id: `BUY_${product.id}`,
+      title: (product.name || 'Product').substring(0, 24), // Enforce strict WhatsApp character restrictions
+      description: `₦${Number(product.price || 0).toLocaleString()} - ${(product.description || '').substring(0, 60)}`
+    }));
+
+    const catalogLines = safeProducts.slice(0, 6).map((p, idx) => {
+      const priceStr = `₦${Number(p.price || 0).toLocaleString()}`;
+      return `*${idx + 1}. ${p.name}* — ${priceStr}\n   _${(p.description || 'Artisan quality').substring(0, 60)}_`;
+    }).join('\n\n');
+
+    const appBaseUrl = process.env.RENDER_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://onrender.com';
+    const sourceUrl = `${appBaseUrl}/store/${storeMetadata.id}`;
+    const firstImageUrl = safeProducts[0]?.image_url || safeProducts[0]?.image;
+    const verifiedThumbnail = ensurePublicCdnUrl(firstImageUrl);
+
+    // 2. Build the exact visual matching layout block structure (Rich Header + Interactive Action Lists)
+    const unifiedStoreCatalogPayload = {
+      text: `🟢 *${storeMetadata.store_name}* \n*WhatsApp Online Store* 🛍️\n\n${storeMetadata.description || 'Welcome to our digital store assistant!'}\n\n━━━━━━━━━━━━━━━━━━━━\n📋 *CURATED MENU & CATALOG*\n\n${catalogLines}\n\n━━━━━━━━━━━━━━━━━━━━\n👉 *Quick Checkout:* Tap any shortcut button below, or reply *BUY <Product Number>*!`,
+      footer: "👉 Click below to view our curated menu/catalog or talk to our assistant:",
+      buttons: [
+        {
+          buttonId: 'view_full_catalog',
+          buttonText: { displayText: '📋 View Menu Catalog' },
+          type: 1
+        }
+      ],
+      headerType: 4, // Marks inclusion of rich descriptive card context
+      
+      // This wires up the rich top header layout safely using our public cloud bucket assets
+      contextInfo: {
+        externalAdReply: {
+          title: storeMetadata.store_name,
+          body: storeMetadata.description?.substring(0, 60) || "Neapolitan sourdough pizzas, pasta fresca & fine wines.",
+          mediaType: 1,
+          previewType: 0,
+          sourceUrl: sourceUrl,
+          // The thumbnail image MUST pull directly from our verified public Supabase bucket CDN URL path
+          thumbnailUrl: verifiedThumbnail
+        }
+      }
+    };
+
+    // 3. Dispatch payload down the background processing engine queue safely
+    await messageRateQueue.add('dispatch-outbound', { 
+      jid, 
+      payload: unifiedStoreCatalogPayload,
+      tenantId: cleanId 
+    });
+
+    // 4. Send the Native WhatsApp Action Sheet Quick Replies underneath the header card
+    const quickRepliesPayload = {
+      text: "✨ *Quick Actions Available Below:*",
+      footer: "Select a shortcut button to fast-track your checkout:",
+      buttons: safeProducts.slice(0, 3).map(p => ({
+        buttonId: `CHECK_${p.id}`,
+        buttonText: { displayText: `Check ${(p.name || 'Item').split(' ')[0]}`.substring(0, 20) },
+        type: 1
+      }))
+    };
+
+    // Stagger slightly using setImmediate or explicit delays to respect our 2-5s security throttling rate limit
+    setTimeout(async () => {
+      await messageRateQueue.add('dispatch-outbound', { 
+        jid, 
+        payload: quickRepliesPayload,
+        tenantId: cleanId 
+      });
+    }, 2000);
   }
 
   /**
@@ -427,9 +566,34 @@ export class WhatsAppMicroservice {
     const caption = customCaption || 
       `🛍️ *${product.name}*\n\n📌 ${product.description}\n\n💰 *Price:* ${currencySymbol}${product.price.toLocaleString()}\n🔢 *In Stock:* ${product.stock > 0 ? '✅ Available' : '❌ Out of Stock'}\n\n👉 Reply with *BUY ${product.id}* to instantly checkout!`;
 
+    const appBaseUrl = process.env.RENDER_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://onrender.com';
+    const storeUrl = `${appBaseUrl}/store/${tenantId}`;
+
     const productPayload = {
       image: { url: publicImageUrl },
-      caption
+      caption,
+      buttons: [
+        {
+          buttonId: `BUY_${product.id}`,
+          buttonText: { displayText: `🛒 Buy ${product.name.split(' ')[0]}`.substring(0, 20) },
+          type: 1
+        },
+        {
+          buttonId: 'view_full_catalog',
+          buttonText: { displayText: '📋 View Menu Catalog' },
+          type: 1
+        }
+      ],
+      contextInfo: {
+        externalAdReply: {
+          title: product.name,
+          body: `${currencySymbol}${product.price.toLocaleString()} · ${product.description?.substring(0, 50) || 'Available in store'}`,
+          mediaType: 1,
+          previewType: 0,
+          sourceUrl: storeUrl,
+          thumbnailUrl: publicImageUrl
+        }
+      }
     };
 
     return messageQueue.enqueue(tenantId, targetJid, productPayload, { priority: 'high' });
@@ -614,3 +778,27 @@ export class WhatsAppMicroservice {
 }
 
 export const whatsappMicroservice = new WhatsAppMicroservice();
+
+/**
+ * Standalone helper matching Section 1 spec:
+ * async function sendTargetStoreLayout(sock, customerJid, storeMetadata, productsList)
+ */
+export async function sendTargetStoreLayout(
+  _sock: any, 
+  customerJid: string, 
+  storeMetadata: { id?: string; store_name?: string; description?: string }, 
+  productsList: any[]
+) {
+  const tenantId = storeMetadata?.id || 'store_aura_main';
+  return whatsappMicroservice.sendTargetStoreLayout(
+    tenantId, 
+    customerJid, 
+    {
+      id: tenantId,
+      store_name: storeMetadata?.store_name || 'WhatsApp Online Store',
+      description: storeMetadata?.description
+    }, 
+    productsList
+  );
+}
+
