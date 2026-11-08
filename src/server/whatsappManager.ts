@@ -17,6 +17,7 @@ import { sessionStore, AuthMethod, ConnectionStatus, DisconnectCategory } from '
 import { crmLeadStore } from './crmLeadStore.js';
 import { AntiBanQueueController } from './antiBanQueue.js';
 import { ensurePublicCdnUrl } from './whatsappMicroservice.js';
+import { MULTI_INDUSTRY_PRESETS, INITIAL_PRODUCTS } from '../data/initialData.js';
 
 export interface WhatsAppMessage {
   id: string;
@@ -170,69 +171,29 @@ export class WhatsAppManager {
       }
     }
 
-    // Default isolated catalog per store (never leak another store's products)
+    // Default isolated catalog per store with industry detection
+    const isFood = cleanId.includes('food') || 
+      cleanId.includes('tavola') || 
+      cleanId.includes('kitchen') || 
+      cleanId.includes('bali') || 
+      cleanId.includes('dining') || 
+      cleanId.includes('pizza') ||
+      cleanId.includes('restaurant');
+
+    const foodProducts = MULTI_INDUSTRY_PRESETS[1]?.products || [];
+    const fashionProducts = MULTI_INDUSTRY_PRESETS[0]?.products || INITIAL_PRODUCTS;
+
     const fallback = {
-      storeName: cleanId === 'store_aura_main' ? 'AURA Store & Tools' : 'Our WhatsApp Store',
-      products: cleanId === 'store_aura_main' ? [
-        {
-          id: 'prod_linen_01',
-          name: 'Artisanal Linen Overshirt',
-          category: 'Apparel',
-          industry: 'fashion',
-          price: 118,
-          description: 'Tailored relaxed-fit 100% Normandy flax linen with natural mother-of-pearl buttons. Breathable, pre-washed for soft drape.',
-          stock: 14,
-          productType: 'physical',
-          image: '/src/assets/images/linen_overshirt_1793193350092.jpg',
-          sizes: ['S', 'M', 'L', 'XL'],
-          colors: ['Oat Sand', 'Chalk White'],
-          featured: true
-        },
-        {
-          id: 'prod_weekender_02',
-          name: 'Full-Grain Cognac Leather Weekender',
-          category: 'Leather Goods',
-          industry: 'fashion',
-          price: 285,
-          description: 'Handcrafted vegetable-tanned Italian leather with solid brass hardware, reinforced base, and detachable shoulder strap.',
-          stock: 7,
-          productType: 'physical',
-          image: '/src/assets/images/leather_weekender_1793193350506.jpg',
-          sizes: ['One Size (45L)'],
-          colors: ['Cognac Brown', 'Dark Espresso'],
-          featured: true
-        },
-        {
-          id: 'prod_sneakers_03',
-          name: 'Minimalist Chalk Low-Top Sneakers',
-          category: 'Footwear',
-          industry: 'fashion',
-          price: 165,
-          description: 'Buttery calfskin leather upper paired with durable Margom rubber sole and memory-foam arch support insoles.',
-          stock: 18,
-          productType: 'physical',
-          image: '/src/assets/images/artisan_sneakers_1793193350841.jpg',
-          sizes: ['40', '41', '42', '43', '44', '45'],
-          colors: ['Chalk White', 'Monochrome Gray'],
-          featured: true
-        },
-        {
-          id: 'prod_lookbook_digital',
-          name: 'Atelier Capsule Lookbook & Masterclass',
-          category: 'Digital Guides',
-          industry: 'fashion',
-          price: 29,
-          description: 'Complete 84-page wardrobe capsule architecture guide (PDF) + 4K video masterclass. Sent instantly upon payment.',
-          stock: 999,
-          productType: 'digital',
-          image: '/src/assets/images/cashmere_knit_1793193352022.jpg',
-          featured: true
-        }
-      ] : [],
-      settings: null
+      storeName: isFood ? 'Tavola Artisan Kitchen & Delivery' : (cleanId === 'store_aura_main' ? 'AURA Store & Tools' : 'Our WhatsApp Store'),
+      products: isFood ? foodProducts : (cleanId === 'store_aura_main' ? fashionProducts : foodProducts),
+      settings: {
+        industry: isFood ? 'food' : 'fashion',
+        storeTagline: isFood ? 'Wood-fired pizza, fresh pastas & grilled seafood' : 'Tailored sustainable fashion & bespoke leathercraft'
+      }
     };
 
     this.tenantCatalogs.set(cleanId, fallback);
+    return fallback;
     return fallback;
   }
 
@@ -1266,59 +1227,85 @@ export class WhatsAppManager {
       ? productsList
       : this.getTenantCatalog(cleanId).products;
 
+    const isFoodStore = 
+      (storeMetadata.store_name || '').toLowerCase().includes('dining') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('kitchen') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('tavola') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('pizza') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('food') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('bistro') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('restaurant') ||
+      (storeMetadata.store_name || '').toLowerCase().includes('bali') ||
+      (storeMetadata.description || '').toLowerCase().includes('pizza') ||
+      (storeMetadata.description || '').toLowerCase().includes('pasta');
+
+    const heroCoverUrl = isFoodStore
+      ? 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1200&q=80'
+      : 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1200&q=80';
+
     const catalogLines = safeProducts.slice(0, 8).map((p, idx) => {
       const priceStr = `₦${Number(p.price || 0).toLocaleString()}`;
-      const stockBadge = (p.stock && p.stock > 0) ? '✓ Available' : '✓ In Stock';
+      const stockBadge = (p.stock && p.stock > 0) ? '✓ In Stock' : '✓ Available';
       const sizeNote = Array.isArray(p.sizes) && p.sizes.length > 0 ? `\n   📏 _Options: ${p.sizes.slice(0, 3).join(', ')}_` : '';
-      return `*${idx + 1}. ${p.name}* — *${priceStr}*\n   _${(p.description || 'Artisan quality').substring(0, 75)}_\n   📦 ${stockBadge}${sizeNote}\n   👉 Reply *BUY ${idx + 1}* or *${(p.name || 'Item').split(' ')[0]}*`;
+      return `*${idx + 1}. ${p.name}* — *${priceStr}*\n   _${(p.description || (isFoodStore ? 'Wood-fired & freshly prepared' : 'Artisan handcrafted')).substring(0, 75)}_\n   📦 ${stockBadge}${sizeNote}\n   👉 Reply *BUY ${idx + 1}* or *BUY ${(p.name || 'Item').split(' ')[0]}*`;
     }).join('\n\n');
 
     const appBaseUrl = process.env.RENDER_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://onrender.com';
     const sourceUrl = `${appBaseUrl}/store/${storeMetadata.id}`;
     const firstImageUrl = safeProducts[0]?.image_url || safeProducts[0]?.image;
-    const verifiedThumbnail = ensurePublicCdnUrl(firstImageUrl);
+    const verifiedThumbnail = ensurePublicCdnUrl(firstImageUrl || heroCoverUrl);
 
-    const unifiedStoreCatalogPayload = {
-      text: `🟢 *${storeMetadata.store_name}* \n*WhatsApp Online Store* 🛍️\n\n${storeMetadata.description || 'Welcome to our digital store assistant! Neapolitan sourdough pizzas, pasta fresca & fine wines.'}\n\n⭐ *Rating:* 4.9 (1,284 verified reviews) • 🟢 *Open 9AM - 10PM*\n\n━━━━━━━━━━━━━━━━━━━━\n📋 *CURATED MENU & CATALOG*\n\n${catalogLines}\n\n━━━━━━━━━━━━━━━━━━━━\n👉 *Quick Checkout Options:*\n• Reply *BUY 1*, *BUY 2* to order instantly\n• Reply with your dish preference or dietary questions\n• Reply *CHECKOUT* to finalize your order!`,
-      footer: "👉 Tap below to view our verified catalog or order with AI assistant:",
-      buttons: [
-        {
-          buttonId: 'view_full_catalog',
-          buttonText: { displayText: '📋 View Menu Catalog' },
-          type: 1
+    const fullCatalogCaption = 
+      `🟢 *${storeMetadata.store_name.toUpperCase()}*\n` +
+      `*Official WhatsApp Online Store* 🛍️\n\n` +
+      `${storeMetadata.description || (isFoodStore ? 'Neapolitan sourdough pizzas, fresh pastas & grilled seafood.' : 'Curated collection & bespoke doorstep delivery.')}\n\n` +
+      `⭐ *Store Rating:* 4.9 (1,284 verified reviews)\n` +
+      `🟢 *Operating Hours:* Open Daily 9:00 AM - 10:00 PM\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `📋 *CURATED LIVE STORE MENU & CATALOG*\n\n` +
+      `${catalogLines}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🛍️ *TAP TO OPEN DIGITAL STOREFRONT & CART:*\n` +
+      `👉 ${sourceUrl}\n` +
+      `_(Browse dishes, customize ingredients & pay with Card, Transfer or Crypto)_\n\n` +
+      `👉 *Instant In-Chat Ordering:*\n` +
+      `• Reply *BUY 1*, *BUY 2* or any dish name to order right here!\n` +
+      `• Reply *CHECKOUT* to finalize your order\n` +
+      `• Ask our 24/7 AI concierge any question!`;
+
+    try {
+      // Dispatches the full visual store cover card with complete catalog and web link
+      await this.sendMessage(cleanId, customerJid, {
+        image: { url: heroCoverUrl },
+        caption: fullCatalogCaption,
+        contextInfo: {
+          externalAdReply: {
+            title: `🟢 ${storeMetadata.store_name} — WhatsApp Store`,
+            body: "Tap to open interactive storefront, visual menu & cart",
+            mediaType: 1,
+            renderLargerThumbnail: true,
+            showAdAttribution: true,
+            sourceUrl,
+            thumbnailUrl: verifiedThumbnail
+          } as any
         }
-      ],
-      headerType: 4,
-      contextInfo: {
-        externalAdReply: {
-          title: storeMetadata.store_name,
-          body: storeMetadata.description?.substring(0, 60) || "Neapolitan sourdough pizzas, pasta fresca & fine wines.",
-          mediaType: 1,
-          renderLargerThumbnail: true,
-          showAdAttribution: true,
-          sourceUrl,
-          thumbnailUrl: verifiedThumbnail
-        } as any
-      }
-    };
-
-    await this.sendMessage(cleanId, customerJid, unifiedStoreCatalogPayload);
-
-    // Stagger featured dish card with high-res photo thumbnail
-    if (safeProducts[0]) {
-      setTimeout(async () => {
-        try {
-          const topItem = safeProducts[0];
-          const topImg = ensurePublicCdnUrl(topItem.image_url || topItem.image);
-          const topCaption = `⭐ *Chef's Special Recommendation: ${topItem.name}*\n\n💰 Price: ₦${Number(topItem.price || 0).toLocaleString()}\n📌 ${topItem.description || ''}\n\n👉 Reply *BUY ${topItem.id}* or *1* to add to your order!`;
-          await this.sendMessage(cleanId, customerJid, {
-            image: { url: topImg },
-            caption: topCaption
-          });
-        } catch (cardErr) {
-          console.warn('[WhatsAppManager] Notice on staggered card send:', cardErr);
+      });
+    } catch (err) {
+      console.warn('[WhatsAppManager] Media cover delivery notice, falling back to rich text payload:', err);
+      await this.sendMessage(cleanId, customerJid, {
+        text: fullCatalogCaption,
+        contextInfo: {
+          externalAdReply: {
+            title: `🟢 ${storeMetadata.store_name} — WhatsApp Store`,
+            body: "Tap to open interactive storefront, visual menu & cart",
+            mediaType: 1,
+            renderLargerThumbnail: true,
+            showAdAttribution: true,
+            sourceUrl,
+            thumbnailUrl: verifiedThumbnail
+          } as any
         }
-      }, 1800);
+      });
     }
   }
 
