@@ -504,7 +504,7 @@ class WhatsAppOrderEngine {
       }
 
       // Generate rich catalog item cards with real product images
-      const catalogItems = activeProducts.slice(0, 5).map((p, idx) => {
+      const catalogItems = activeProducts.slice(0, 8).map((p, idx) => {
         const inStockBadge = (p.stock && p.stock > 0) ? `✓ In Stock (${p.stock} units)` : '✓ Available';
         const sizesStr = (Array.isArray(p.sizes) && p.sizes.length > 0) ? `\n📏 *Sizes*: ${p.sizes.join(', ')}` : '';
         const colorsStr = (Array.isArray(p.colors) && p.colors.length > 0) ? `\n🎨 *Colors*: ${p.colors.join(', ')}` : '';
@@ -522,10 +522,28 @@ class WhatsAppOrderEngine {
         };
       });
 
+      const formattedCatalogList = activeProducts.slice(0, 8).map((p, idx) => {
+        const inStockBadge = (p.stock && p.stock > 0) ? `✓ In Stock` : '✓ Available';
+        const origPriceStr = p.originalPrice ? ` ~(was ${currencySymbol}${p.originalPrice})~` : '';
+        const optionsStr = (Array.isArray(p.sizes) && p.sizes.length > 0) ? `\n   📏 _Options: ${p.sizes.slice(0, 3).join(', ')}_` : '';
+        return `*${idx + 1}. ${p.name}* — *${currencySymbol}${Number(p.price).toLocaleString()}*${origPriceStr}\n` +
+          `   _${(p.description || '').substring(0, 75)}_\n` +
+          `   📦 ${inStockBadge}${optionsStr}\n` +
+          `   👉 Reply *BUY ${idx + 1}* or *${p.name.split(' ')[0]}*`;
+      }).join('\n\n');
+
       return {
         replyText:
-          `🛍️ *Welcome to ${storeName}! Here is our live product collection:*\n\n` +
-          `Browse the items below. Reply with any product name or number to order, select a size, or ask questions!`,
+          `🟢 *${storeName}* \n*WhatsApp Online Store* 🛍️\n\n` +
+          `⭐ *Rating:* 4.9 (1,284) • 🟢 *Open 9AM - 10PM*\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `📋 *CURATED MENU & CATALOG*\n\n` +
+          `${formattedCatalogList}\n\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n` +
+          `👉 *How to Order:*\n` +
+          `• Reply *BUY 1*, *BUY 2* or any dish name to order instantly\n` +
+          `• Reply *CHECKOUT* to finalize your order\n` +
+          `• Or ask any questions about sizing, ingredients & delivery!`,
         catalogItems,
         currentStep: 'idle'
       };

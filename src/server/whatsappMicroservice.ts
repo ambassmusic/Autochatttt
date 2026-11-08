@@ -58,29 +58,43 @@ export interface WhatsAppInstanceSession {
  */
 export function ensurePublicCdnUrl(url?: string): string {
   if (!url) {
-    return 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80';
+    return 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80';
   }
   if (url.startsWith('http://') || url.startsWith('https://')) {
     // If it's a localhost link, swap to cloud CDN fallback
     if (url.includes('localhost') || url.includes('127.0.0.1')) {
-      return 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80';
+      return 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80';
     }
     return url;
   }
-  // If it's a local relative path, map to public CDN image
-  if (url.includes('linen') || url.includes('shirt')) {
+  const low = url.toLowerCase();
+  // Food, dining & restaurant assets
+  if (low.includes('salmon') || low.includes('fish') || low.includes('seafood')) {
+    return 'https://images.unsplash.com/photo-1519708227418-c8fd9a32b7a2?auto=format&fit=crop&w=800&q=80';
+  }
+  if (low.includes('pizza') || low.includes('margherita') || low.includes('burrata')) {
+    return 'https://images.unsplash.com/photo-1604382354936-07c5d9983bd3?auto=format&fit=crop&w=800&q=80';
+  }
+  if (low.includes('burger') || low.includes('wagyu') || low.includes('beef')) {
+    return 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80';
+  }
+  if (low.includes('dining') || low.includes('tavola') || low.includes('restaurant') || low.includes('pasta')) {
+    return 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80';
+  }
+  // Fashion & lifestyle assets
+  if (low.includes('linen') || low.includes('shirt')) {
     return 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80';
   }
-  if (url.includes('leather') || url.includes('weekender') || url.includes('bag')) {
+  if (low.includes('leather') || low.includes('weekender') || low.includes('bag')) {
     return 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=800&q=80';
   }
-  if (url.includes('sneaker') || url.includes('shoe')) {
+  if (low.includes('sneaker') || low.includes('shoe')) {
     return 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=80';
   }
-  if (url.includes('knit') || url.includes('cashmere')) {
+  if (low.includes('knit') || low.includes('cashmere')) {
     return 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=800&q=80';
   }
-  return 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=800&q=80';
+  return 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80';
 }
 
 /**

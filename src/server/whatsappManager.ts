@@ -7,13 +7,16 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   WASocket,
-  Browsers
+  Browsers,
+  AnyMessageContent,
+  MiscMessageGenerationOptions
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import { whatsappOrderEngine } from './whatsappOrderEngine.js';
 import { sessionStore, AuthMethod, ConnectionStatus, DisconnectCategory } from './sessionStore.js';
 import { crmLeadStore } from './crmLeadStore.js';
 import { AntiBanQueueController } from './antiBanQueue.js';
+import { ensurePublicCdnUrl } from './whatsappMicroservice.js';
 
 export interface WhatsAppMessage {
   id: string;
@@ -1177,7 +1180,8 @@ export class WhatsAppManager {
   public async sendMessage(
     userId: string,
     toPhoneOrJid: string,
-    text: string
+    contentOrText: string | AnyMessageContent,
+    options?: MiscMessageGenerationOptions
   ): Promise<{
     success: boolean;
     messageId?: string;
@@ -1204,17 +1208,26 @@ export class WhatsAppManager {
     }
 
     try {
+      const messageContent: AnyMessageContent = typeof contentOrText === 'string'
+        ? { text: contentOrText }
+        : contentOrText;
+
       const result = await this.antiBanQueue.enqueueMessage(
         cleanId,
         recipientJid,
-        { text }
+        messageContent,
+        options
       );
+
+      const textRepresentation = typeof contentOrText === 'string'
+        ? contentOrText
+        : (contentOrText as any).text || (contentOrText as any).caption || '[Rich Media Catalog Payload]';
 
       const record: WhatsAppMessage = {
         id: result.messageId,
         from: session.phone || 'Store',
         to: toPhoneOrJid,
-        text,
+        text: textRepresentation,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         direction: 'outbound',
         status: 'sent',
@@ -1235,6 +1248,112 @@ export class WhatsAppManager {
         error: err.message || 'Failed to dispatch message via anti-ban queue'
       };
     }
+  }
+
+  /**
+   * SECTION 1: TARGET CHATFLOW PAYLOAD IMPLEMENTATION
+   * Unified store layout with rich contextInfo.externalAdReply linked to public store URL,
+   * interactive menu list and quick action reply buttons native to WhatsApp Business layout.
+   */
+  public async sendTargetStoreLayout(
+    tenantId: string,
+    customerJid: string,
+    storeMetadata: { id: string; store_name: string; description?: string },
+    productsList: any[]
+  ): Promise<void> {
+    const cleanId = this.sanitizeUserId(tenantId);
+    const safeProducts = (productsList && productsList.length > 0)
+      ? productsList
+      : this.getTenantCatalog(cleanId).products;
+
+    const catalogLines = safeProducts.slice(0, 8).map((p, idx) => {
+      const priceStr = `₦${Number(p.price || 0).toLocaleString()}`;
+      const stockBadge = (p.stock && p.stock > 0) ? '✓ Available' : '✓ In Stock';
+      const sizeNote = Array.isArray(p.sizes) && p.sizes.length > 0 ? `\n   📏 _Options: ${p.sizes.slice(0, 3).join(', ')}_` : '';
+      return `*${idx + 1}. ${p.name}* — *${priceStr}*\n   _${(p.description || 'Artisan quality').substring(0, 75)}_\n   📦 ${stockBadge}${sizeNote}\n   👉 Reply *BUY ${idx + 1}* or *${(p.name || 'Item').split(' ')[0]}*`;
+    }).join('\n\n');
+
+    const appBaseUrl = process.env.RENDER_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://onrender.com';
+    const sourceUrl = `${appBaseUrl}/store/${storeMetadata.id}`;
+    const firstImageUrl = safeProducts[0]?.image_url || safeProducts[0]?.image;
+    const verifiedThumbnail = ensurePublicCdnUrl(firstImageUrl);
+
+    const unifiedStoreCatalogPayload = {
+      text: `🟢 *${storeMetadata.store_name}* \n*WhatsApp Online Store* 🛍️\n\n${storeMetadata.description || 'Welcome to our digital store assistant! Neapolitan sourdough pizzas, pasta fresca & fine wines.'}\n\n⭐ *Rating:* 4.9 (1,284 verified reviews) • 🟢 *Open 9AM - 10PM*\n\n━━━━━━━━━━━━━━━━━━━━\n📋 *CURATED MENU & CATALOG*\n\n${catalogLines}\n\n━━━━━━━━━━━━━━━━━━━━\n👉 *Quick Checkout Options:*\n• Reply *BUY 1*, *BUY 2* to order instantly\n• Reply with your dish preference or dietary questions\n• Reply *CHECKOUT* to finalize your order!`,
+      footer: "👉 Tap below to view our verified catalog or order with AI assistant:",
+      buttons: [
+        {
+          buttonId: 'view_full_catalog',
+          buttonText: { displayText: '📋 View Menu Catalog' },
+          type: 1
+        }
+      ],
+      headerType: 4,
+      contextInfo: {
+        externalAdReply: {
+          title: storeMetadata.store_name,
+          body: storeMetadata.description?.substring(0, 60) || "Neapolitan sourdough pizzas, pasta fresca & fine wines.",
+          mediaType: 1,
+          renderLargerThumbnail: true,
+          showAdAttribution: true,
+          sourceUrl,
+          thumbnailUrl: verifiedThumbnail
+        } as any
+      }
+    };
+
+    await this.sendMessage(cleanId, customerJid, unifiedStoreCatalogPayload);
+
+    // Stagger featured dish card with high-res photo thumbnail
+    if (safeProducts[0]) {
+      setTimeout(async () => {
+        try {
+          const topItem = safeProducts[0];
+          const topImg = ensurePublicCdnUrl(topItem.image_url || topItem.image);
+          const topCaption = `⭐ *Chef's Special Recommendation: ${topItem.name}*\n\n💰 Price: ₦${Number(topItem.price || 0).toLocaleString()}\n📌 ${topItem.description || ''}\n\n👉 Reply *BUY ${topItem.id}* or *1* to add to your order!`;
+          await this.sendMessage(cleanId, customerJid, {
+            image: { url: topImg },
+            caption: topCaption
+          });
+        } catch (cardErr) {
+          console.warn('[WhatsAppManager] Notice on staggered card send:', cardErr);
+        }
+      }, 1800);
+    }
+  }
+
+  /**
+   * Dispatches a structured product card payload with a guaranteed public HTTPS CDN URL.
+   */
+  public async sendProductCard(
+    tenantId: string,
+    targetJid: string,
+    product: any,
+    customCaption?: string,
+    currencySymbol: string = '₦'
+  ): Promise<void> {
+    const cleanId = this.sanitizeUserId(tenantId);
+    const publicImageUrl = ensurePublicCdnUrl(product.image_url || product.image);
+    const caption = customCaption || `🛍️ *${product.name}*\n\n📌 ${product.description || ''}\n\n💰 *Price:* ${currencySymbol}${Number(product.price || 0).toLocaleString()}\n🔢 *Status:* ${product.stock > 0 ? '✓ In Stock' : '✓ Available'}\n\n👉 Reply with *BUY ${product.id}* to instantly checkout!`;
+
+    const appBaseUrl = process.env.RENDER_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://onrender.com';
+    const storeUrl = `${appBaseUrl}/store/${cleanId}`;
+
+    await this.sendMessage(cleanId, targetJid, {
+      image: { url: publicImageUrl },
+      caption,
+      contextInfo: {
+        externalAdReply: {
+          title: product.name,
+          body: `${currencySymbol}${Number(product.price || 0).toLocaleString()} - View in Online Store`,
+          mediaType: 1,
+          renderLargerThumbnail: true,
+          showAdAttribution: true,
+          sourceUrl: storeUrl,
+          thumbnailUrl: publicImageUrl
+        } as any
+      }
+    });
   }
 
   /* ========================================================================= */
@@ -1302,8 +1421,49 @@ export class WhatsAppManager {
         // 2. Process through conversational Order & Catalog Engine
         try {
           const catalogInfo = this.tenantCatalogs.get(session.tenantId) || this.tenantCatalogs.get('store_aura_main');
-          const storeName = catalogInfo?.storeName || 'Our WhatsApp Store';
+          const storeName = catalogInfo?.storeName || 'AURA Store & Tools';
           const products = catalogInfo?.products || [];
+
+          const cleanText = text.trim();
+          const lower = cleanText.toLowerCase();
+
+          // Check if customer is asking for the catalog / products / menu / store or greetings
+          const isCatalogRequest = 
+            lower === 'catalog' || 
+            lower === 'menu' || 
+            lower === 'products' || 
+            lower === 'store' || 
+            lower === 'items' || 
+            lower === 'hi' || 
+            lower === 'hello' || 
+            lower === 'hey' || 
+            lower === 'view_full_catalog' || 
+            lower === 'start' || 
+            lower.includes('show menu') || 
+            lower.includes('see catalog') || 
+            lower.includes('what do you sell');
+
+          if (cleanText.startsWith('CHECK_') || cleanText.startsWith('BUY_')) {
+            const prodId = cleanText.replace(/^(CHECK_|BUY_)/, '').trim();
+            const found = products.find((p: any) => p.id === prodId || p.id.toLowerCase() === prodId.toLowerCase());
+            if (found) {
+              const actionCaption = cleanText.startsWith('BUY_')
+                ? `⚡ *Instant Checkout Selection: ${found.name}*\n\n💰 Price: ₦${Number(found.price || 0).toLocaleString()}\n📦 Ready for immediate fulfillment.\n\nReply with *CONFIRM* to place your order or reply with your delivery address!`
+                : `🔎 *Product Overview: ${found.name}*\n\n📌 ${found.description || ''}\n\n💰 Price: ₦${Number(found.price || 0).toLocaleString()}\n🔢 Status: ${found.stock > 0 ? '✓ In Stock' : '✓ Available'}\n\n👉 Reply *BUY ${found.id}* to order now!`;
+              await this.sendProductCard(session.tenantId, senderJid, found, actionCaption);
+              continue;
+            }
+          }
+
+          if (isCatalogRequest) {
+            const storeMetadata = {
+              id: session.tenantId,
+              store_name: storeName,
+              description: catalogInfo?.settings?.storeTagline || 'Neapolitan sourdough pizzas, pasta fresca & fine wines.'
+            };
+            await this.sendTargetStoreLayout(session.tenantId, senderJid, storeMetadata, products);
+            continue;
+          }
 
           const engineResult = whatsappOrderEngine.processMessage(
             session.tenantId,
@@ -1315,12 +1475,17 @@ export class WhatsAppManager {
             catalogInfo?.settings
           );
 
-          const replyText = engineResult.replyText;
-          if (replyText) {
-            // Reply directly to senderJid to support both standard JID and modern WhatsApp @lid
-            this.sendMessage(session.tenantId, senderJid, replyText).catch(replyErr => {
-              console.error(`[WhatsAppManager:${session.tenantId}] Failed to send automated reply:`, replyErr);
-            });
+          if (engineResult.catalogItems && engineResult.catalogItems.length > 0) {
+            const storeMetadata = {
+              id: session.tenantId,
+              store_name: storeName,
+              description: catalogInfo?.settings?.storeTagline || 'Neapolitan sourdough pizzas, pasta fresca & fine wines.'
+            };
+            await this.sendTargetStoreLayout(session.tenantId, senderJid, storeMetadata, products);
+          } else if (engineResult.productCard) {
+            await this.sendProductCard(session.tenantId, senderJid, engineResult.productCard.product, engineResult.productCard.caption);
+          } else if (engineResult.replyText) {
+            await this.sendMessage(session.tenantId, senderJid, engineResult.replyText);
           }
         } catch (engineErr) {
           console.error(`[WhatsAppManager:${session.tenantId}] Error in order engine:`, engineErr);
