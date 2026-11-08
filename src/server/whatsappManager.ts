@@ -455,15 +455,28 @@ export class WhatsAppManager {
       session.phone = `+${cleanNumber}`;
     }
 
-    // Always reset storage directory if not registered or if fresh code requested
-    if (fs.existsSync(userStorageDir)) {
+    // Only reset storage directory if there are NO registered credentials
+    let hasRegisteredCreds = false;
+    if (fs.existsSync(credsFile)) {
+      try {
+        const raw = fs.readFileSync(credsFile, 'utf-8');
+        const creds = JSON.parse(raw);
+        if (creds && creds.registered) {
+          hasRegisteredCreds = true;
+        }
+      } catch {}
+    }
+
+    if (!hasRegisteredCreds && fs.existsSync(userStorageDir)) {
       try {
         fs.rmSync(userStorageDir, { recursive: true, force: true });
       } catch (e) {
         console.warn('Could not reset user storage directory:', e);
       }
     }
-    fs.mkdirSync(userStorageDir, { recursive: true });
+    if (!fs.existsSync(userStorageDir)) {
+      fs.mkdirSync(userStorageDir, { recursive: true });
+    }
     session.pairingCode = null;
     session.pairingExpiresAt = null;
     session.isPairingHandshake = false;
@@ -636,19 +649,11 @@ export class WhatsAppManager {
               return;
             }
 
-            // Real hard logout (only when session was already registered or pairing code has expired)
-            let isHardLogout = false;
-            switch (statusCode) {
-              case DisconnectReason.loggedOut: // 401
-              case DisconnectReason.connectionReplaced: // 440
-              case DisconnectReason.multideviceMismatch: // 411
-              case DisconnectReason.forbidden: // 403
-                isHardLogout = true;
-                break;
-            }
+            // Only purge storage on explicit 401 logged out from WhatsApp mobile device
+            const isHardLogout = (statusCode === DisconnectReason.loggedOut || statusCode === 401);
 
             if (isHardLogout) {
-              console.warn(`[WhatsAppManager:${cleanId}] Hard logout (${statusCode}). Purging storage.`);
+              console.warn(`[WhatsAppManager:${cleanId}] Device unlinked (401). Purging storage.`);
               session.status = 'disconnected';
               session.phone = null;
               session.pairingCode = null;
@@ -661,9 +666,10 @@ export class WhatsAppManager {
                 disconnectCategory: 'HARD_LOGOUT'
               });
             } else {
+              console.log(`[WhatsAppManager:${cleanId}] Connection close (${statusCode}). Retaining credentials and reconnecting.`);
               session.status = 'reconnecting';
               session.reconnectAttempts = (session.reconnectAttempts || 0) + 1;
-              if (session.reconnectAttempts <= 5) {
+              if (session.reconnectAttempts <= 10) {
                 if (session.reconnectTimer) clearTimeout(session.reconnectTimer);
                 session.reconnectTimer = setTimeout(() => {
                   this.reconnectPairingSocket(cleanId, cleanNumber);
@@ -810,15 +816,7 @@ export class WhatsAppManager {
 
             console.log(`[WhatsAppManager:${cleanId}] Connection closed. Status code: ${statusCode} (${errorMsg})`);
 
-            let isHardLogout = false;
-            switch (statusCode) {
-              case DisconnectReason.loggedOut:
-              case DisconnectReason.connectionReplaced:
-              case DisconnectReason.multideviceMismatch:
-              case DisconnectReason.forbidden:
-                isHardLogout = true;
-                break;
-            }
+            const isHardLogout = (statusCode === DisconnectReason.loggedOut || statusCode === 401);
 
             if (isHardLogout) {
               session.status = 'disconnected';
