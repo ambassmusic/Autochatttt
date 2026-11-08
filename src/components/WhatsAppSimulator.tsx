@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Send, Phone, Video, MoreVertical, CheckCheck, ShoppingBag, 
   Sparkles, Package, Truck, ArrowRight, X, ChevronRight, ChevronLeft, RotateCcw,
-  Volume2, VolumeX, ShieldCheck, Plus, Minus, CreditCard, Coins, Building
+  Volume2, VolumeX, ShieldCheck, Plus, Minus, CreditCard, Coins, Building,
+  Star, Check
 } from 'lucide-react';
 import { Product, CartItem, ChatMessage, BotSettings, Order, PaymentMethod } from '../types';
 
@@ -40,6 +41,12 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
 
+  // In-Chat Interactive Store & Customizer State
+  const [activeCatalogCategory, setActiveCatalogCategory] = useState<string>('all');
+  const [customizerPrep, setCustomizerPrep] = useState<string>('Grilled (Charred)');
+  const [selectedAddons, setSelectedAddons] = useState<string[]>(['Lemon butter sauce (+ $2)']);
+  const [customizerQty, setCustomizerQty] = useState<number>(1);
+
   // Checkout form state
   const [customerName, setCustomerName] = useState('Alex Mercer');
   const [customerPhone, setCustomerPhone] = useState('+1 (415) 555-0199');
@@ -70,8 +77,67 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
   const handleOpenProduct = (product: Product) => {
     setSelectedProduct(product);
     setActiveImageIndex(0);
-    setSelectedSize(product.sizes[0] || '');
-    setSelectedColor(product.colors[0] || '');
+    const initialSize = product.sizes?.[0] || 'Regular';
+    const initialColor = product.colors?.[0] || 'Standard';
+    setSelectedSize(initialSize);
+    setSelectedColor(initialColor);
+    setCustomizerPrep(initialSize);
+    setSelectedAddons(product.colors && product.colors.length > 0 ? [product.colors[0]] : ['Lemon butter sauce (+ $2)']);
+    setCustomizerQty(1);
+  };
+
+  const getCustomizerExtraPrice = () => {
+    let extra = 0;
+    selectedAddons.forEach(addon => {
+      if (addon.includes('+ $')) {
+        const match = addon.match(/\+\s*\$(\d+(\.\d+)?)/);
+        if (match) extra += parseFloat(match[1]);
+      } else if (addon.includes('+ $') || addon.includes('+$')) {
+        const match = addon.match(/\+\$?\s*(\d+(\.\d+)?)/);
+        if (match) extra += parseFloat(match[1]);
+      }
+    });
+    if (customizerPrep.includes('+ $')) {
+      const match = customizerPrep.match(/\+\s*\$(\d+(\.\d+)?)/);
+      if (match) extra += parseFloat(match[1]);
+    }
+    return extra;
+  };
+
+  const customizerUnitPrice = selectedProduct ? (selectedProduct.price + getCustomizerExtraPrice()) : 0;
+  const customizerTotalPrice = customizerUnitPrice * customizerQty;
+
+  const handleAddCustomizedToCart = () => {
+    if (!selectedProduct) return;
+    const finalSize = customizerPrep || selectedSize || 'Regular';
+    const finalAddonsStr = selectedAddons.length > 0 ? selectedAddons.join(', ') : 'Standard';
+
+    let nextCart: CartItem[] = [];
+    setCart(prev => {
+      const existing = prev.find(item => 
+        item.product.id === selectedProduct.id && 
+        item.selectedSize === finalSize &&
+        item.selectedColor === finalAddonsStr
+      );
+      if (existing) {
+        nextCart = prev.map(item => 
+          item === existing ? { ...item, quantity: item.quantity + customizerQty } : item
+        );
+      } else {
+        nextCart = [...prev, { 
+          product: { ...selectedProduct, price: customizerUnitPrice }, 
+          quantity: customizerQty, 
+          selectedSize: finalSize, 
+          selectedColor: finalAddonsStr 
+        }];
+      }
+      return nextCart;
+    });
+
+    const addedItemName = selectedProduct.name;
+    const addedPrice = customizerTotalPrice.toFixed(2);
+    setSelectedProduct(null);
+    onSendMessage(`Added ${customizerQty}x ${addedItemName} ($${addedPrice}) with ${finalAddonsStr} to order! 🛍️`, nextCart);
   };
 
   const handleAddToCart = (product: Product, size?: string, color?: string) => {
@@ -273,101 +339,264 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
               >
                 {/* Bubble Container */}
                 <div 
-                  className={`relative max-w-[88%] rounded-2xl p-2.5 shadow-xs text-xs ${
+                  className={`relative ${msg.type === 'catalog' ? 'max-w-[96%] w-full' : 'max-w-[88%]'} rounded-2xl p-2.5 shadow-xs text-xs ${
                     isCustomer 
                       ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-xs' 
-                      : 'bg-white text-slate-900 rounded-tl-xs border border-slate-200/60'
+                      : 'bg-white text-slate-900 rounded-tl-xs border border-slate-200/80'
                   }`}
                 >
                   {/* Message Text */}
-                  <p className="whitespace-pre-line leading-relaxed text-[12px]">
+                  <p className="whitespace-pre-line leading-relaxed text-[12px] mb-1.5 font-medium text-slate-800">
                     {msg.text}
                   </p>
 
-                  {/* Rich Catalog Cards Payload */}
-                  {msg.type === 'catalog' && msg.payload?.products && (
-                    <div className="mt-2 space-y-2">
-                      <div className="grid grid-cols-1 gap-2">
-                        {msg.payload.products.map(product => (
-                          <div 
-                            key={product.id}
-                            className="bg-slate-50 rounded-xl p-2 border border-slate-200 flex gap-2.5 items-center hover:border-emerald-500 transition-all cursor-pointer"
-                            onClick={() => handleOpenProduct(product)}
-                          >
-                            <img 
-                              src={product.image} 
-                              alt={product.name}
-                              referrerPolicy="no-referrer"
-                              className="w-14 h-14 rounded-lg object-cover shrink-0 bg-slate-200"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-slate-900 text-xs truncate">
-                                {product.name}
-                              </h4>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="font-mono text-emerald-700 font-bold text-xs tabular-nums">
-                                  ${product.price}
-                                </span>
-                                {product.originalPrice && (
-                                  <span className="font-mono text-slate-400 line-through text-[10px] tabular-nums">
-                                    ${product.originalPrice}
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-slate-500 line-clamp-1 mt-0.5">
-                                {product.sizes.join(' · ')}
-                              </span>
+                  {/* HIGH-CLASS INTERACTIVE STOREFRONT CATALOG CARD (Matching Screenshot 1 & 2) */}
+                  {msg.type === 'catalog' && (() => {
+                    const allCatalogProds = (products && products.length > 0) 
+                      ? products 
+                      : (msg.payload?.products && msg.payload.products.length > 0 ? msg.payload.products : []);
+
+                    if (allCatalogProds.length === 0) return null;
+
+                    const isFoodStore = settings.industry === 'food' || 
+                      (settings.storeName && (
+                        settings.storeName.toLowerCase().includes('dining') || 
+                        settings.storeName.toLowerCase().includes('kitchen') || 
+                        settings.storeName.toLowerCase().includes('tavola') || 
+                        settings.storeName.toLowerCase().includes('pizza') || 
+                        settings.storeName.toLowerCase().includes('bali') || 
+                        settings.storeName.toLowerCase().includes('bistro')
+                      ));
+                    const storeCoverUrl = isFoodStore 
+                      ? 'https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80'
+                      : 'https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=800&q=80';
+                    const storeLogoUrl = isFoodStore
+                      ? 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=140&q=80'
+                      : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=140&q=80';
+
+                    const rawCats = Array.from(new Set(allCatalogProds.map(p => p.category || 'General')));
+                    const availableCats = ['all', ...rawCats];
+                    const activeProds = activeCatalogCategory === 'all' 
+                      ? allCatalogProds 
+                      : allCatalogProds.filter(p => (p.category || 'General') === activeCatalogCategory);
+                    const topItem = activeProds[0] || allCatalogProds[0];
+
+                    return (
+                      <div className="mt-2 rounded-2xl overflow-hidden border border-slate-200/90 bg-white shadow-sm space-y-3 p-3">
+                        {/* Store Hero Cover Photo Banner with Inset Floating Avatar */}
+                        <div className="relative h-28 sm:h-32 rounded-xl overflow-hidden bg-slate-900 -mx-3 -mt-3 mb-2">
+                          <img 
+                            src={storeCoverUrl} 
+                            alt={settings.storeName || 'Store Cover'} 
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent" />
+                          
+                          {/* Inset Store Avatar Badge */}
+                          <div className="absolute bottom-2 left-3 flex items-center gap-2.5">
+                            <div className="w-11 h-11 rounded-xl overflow-hidden border-2 border-white shadow-md bg-white shrink-0">
+                              <img 
+                                src={storeLogoUrl} 
+                                alt="Store Logo" 
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                              />
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddToCart(product);
-                              }}
-                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-semibold shrink-0 flex items-center gap-1 transition-colors shadow-xs"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Add
-                            </button>
+                            <div className="text-white drop-shadow-md pr-2">
+                              <div className="flex items-center gap-1">
+                                <h3 className="font-extrabold text-xs sm:text-sm text-white leading-tight truncate">
+                                  {settings.storeName || 'Bali Dining'}
+                                </h3>
+                                <span className="inline-flex w-3.5 h-3.5 items-center justify-center rounded-full bg-[#25A2E3] text-white text-[9px] font-bold shrink-0">
+                                  ✓
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-white/90 line-clamp-1 mt-0.5">
+                                {settings.storeTagline || 'Wood-fired pizza, fresh pastas & grilled seafood.'}
+                              </p>
+                            </div>
                           </div>
-                        ))}
+                        </div>
+
+                        {/* Store Rating & Operating Hours Badges */}
+                        <div className="flex items-center justify-between text-[10px] px-0.5 pt-0.5">
+                          <div className="flex items-center gap-1 font-bold text-amber-800 bg-amber-50/90 px-2 py-0.5 rounded-full border border-amber-200/80">
+                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                            <span>4.9 (1,284)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/80">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                            <span>Open · 9AM - 10PM</span>
+                          </div>
+                        </div>
+
+                        {/* Category Filter Horizontal Pills */}
+                        {availableCats.length > 1 && (
+                          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 chat-scrollbar pt-0.5">
+                            {availableCats.map(cat => {
+                              const label = cat === 'all' 
+                                ? '✨ All Dishes' 
+                                : cat.includes('Pizza') ? `🍕 ${cat}` : cat.includes('Burger') ? `🍔 ${cat}` : cat.includes('Beverage') ? `🍹 ${cat}` : `🍝 ${cat}`;
+                              return (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  onClick={() => setActiveCatalogCategory(cat)}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                    activeCatalogCategory === cat
+                                      ? 'bg-[#008069] text-white shadow-2xs'
+                                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                  }`}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Highly Stylized Product Cards Inside the Bubble */}
+                        <div className="space-y-2.5 pt-0.5">
+                          {activeProds.map(product => (
+                            <div 
+                              key={product.id}
+                              className="bg-white hover:bg-emerald-50/30 rounded-xl p-2.5 border border-slate-200 flex items-center justify-between gap-3 transition-all cursor-pointer shadow-2xs group hover:border-emerald-300"
+                              onClick={() => handleOpenProduct(product)}
+                            >
+                              <div className="flex-1 min-w-0 pr-1">
+                                <h4 className="font-bold text-slate-900 text-xs sm:text-[13px] leading-tight truncate group-hover:text-emerald-950 transition-colors">
+                                  {product.name}
+                                </h4>
+                                <p className="text-[10.5px] text-slate-500 line-clamp-1 mt-0.5 leading-snug">
+                                  {product.description}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="font-mono font-extrabold text-slate-950 text-xs sm:text-[13px] tabular-nums">
+                                    ${Number(product.price).toFixed(2)}
+                                  </span>
+                                  {product.originalPrice && (
+                                    <span className="font-mono text-slate-400 line-through text-[10px] tabular-nums">
+                                      ${Number(product.originalPrice).toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Buttons for 'View Details' and 'Add to Cart' inside the chat bubble */}
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenProduct(product);
+                                    }}
+                                    className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-[10px] font-semibold transition-colors shadow-2xs active:scale-95 cursor-pointer"
+                                  >
+                                    View Details
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddToCart(product);
+                                    }}
+                                    className="px-2.5 py-1 bg-[#008069] hover:bg-[#00705b] text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors shadow-xs active:scale-95 cursor-pointer"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    Add to Cart
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Right Column: Dish Photo Thumbnail */}
+                              <div className="relative w-16 h-16 sm:w-18 sm:h-18 rounded-xl overflow-hidden bg-slate-100 shrink-0 border border-slate-200/90 shadow-2xs">
+                                <img 
+                                  src={product.image} 
+                                  alt={product.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* In-Card Sticky / Action CTA Button (Matching Screenshot 1!) */}
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (cart.length > 0) {
+                                setIsCheckoutOpen(true);
+                              } else if (topItem) {
+                                handleOpenProduct(topItem);
+                              }
+                            }}
+                            className="w-full py-2.5 px-3 bg-[#008069] hover:bg-[#00705b] text-white text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.99]"
+                          >
+                            {cart.length > 0 ? (
+                              <>
+                                <ShoppingBag className="w-3.5 h-3.5" />
+                                <span>View Bag &amp; Order ({cart.reduce((s, i) => s + i.quantity, 0)} Items · ${total.toFixed(2)})</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </>
+                            ) : (
+                              <>
+                                <span>Customize {topItem?.name || 'Dish'} (${Number(topItem?.price || 36).toFixed(2)})</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Single Product Showcase Card */}
                   {msg.type === 'product_card' && msg.payload?.product && (
-                    <div className="mt-2 bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
-                      <img 
-                        src={msg.payload.product.image} 
-                        alt={msg.payload.product.name}
-                        referrerPolicy="no-referrer"
-                        className="w-full h-32 object-cover bg-slate-200"
-                      />
-                      <div className="p-2.5">
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-semibold text-slate-900 text-xs">
+                    <div className="mt-2 bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                      <div className="relative w-full h-36 bg-slate-900 overflow-hidden">
+                        <img 
+                          src={msg.payload.product.image} 
+                          alt={msg.payload.product.name}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        <div className="absolute top-2 left-2 bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                          <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                          <span>Featured Item</span>
+                        </div>
+                      </div>
+                      <div className="p-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm leading-tight">
                             {msg.payload.product.name}
                           </h4>
-                          <span className="font-mono text-emerald-700 font-bold text-xs tabular-nums">
-                            ${msg.payload.product.price}
+                          <span className="font-mono text-[#008069] font-extrabold text-xs sm:text-sm tabular-nums">
+                            ${Number(msg.payload.product.price).toFixed(2)}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">
+                        <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
                           {msg.payload.product.description}
                         </p>
-                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200">
+                        
+                        {/* Dual action buttons inside bubble: View Details and Add to Cart */}
+                        <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80">
                           <button
+                            type="button"
                             onClick={() => handleOpenProduct(msg.payload!.product!)}
-                            className="flex-1 py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[11px] font-medium text-center transition-colors shadow-xs"
+                            className="flex-1 py-2 px-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold text-center transition-colors shadow-2xs cursor-pointer"
                           >
-                            Details
+                            View Details
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleAddToCart(msg.payload!.product!)}
-                            className="flex-1 py-1.5 px-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-semibold text-center flex items-center justify-center gap-1 transition-colors shadow-xs"
+                            className="flex-1 py-2 px-2.5 bg-[#008069] hover:bg-[#00705b] text-white rounded-xl text-xs font-bold text-center flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                           >
-                            <ShoppingBag className="w-3 h-3" />
-                            Add to Bag
+                            <ShoppingBag className="w-3.5 h-3.5" />
+                            Add to Cart
                           </button>
                         </div>
                       </div>
@@ -512,6 +741,27 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
               <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
               <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
               <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" />
+            </div>
+          )}
+          {/* Floating WhatsApp Cart Sticky Bar */}
+          {cart.length > 0 && (
+            <div className="sticky bottom-0 z-10 px-2 py-1.5 bg-gradient-to-t from-[#efeae2] via-[#efeae2] to-transparent">
+              <button
+                type="button"
+                onClick={() => setIsCheckoutOpen(true)}
+                className="w-full py-2.5 px-3.5 bg-[#008069] hover:bg-[#00705b] text-white rounded-xl text-xs font-bold flex items-center justify-between shadow-lg shadow-emerald-900/15 transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-[11px] font-mono font-extrabold">
+                    {cart.reduce((s, i) => s + i.quantity, 0)}
+                  </div>
+                  <span>View WhatsApp Cart</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-mono">
+                  <span>${total.toFixed(2)}</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </div>
+              </button>
             </div>
           )}
         </div>
@@ -661,34 +911,150 @@ export const WhatsAppSimulator: React.FC<WhatsAppSimulatorProps> = ({
                 {selectedProduct.description}
               </p>
 
-              {/* Sizes / Options */}
-              <div>
-                <span className="text-[11px] text-slate-500 font-medium">Select Size / Option:</span>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {selectedProduct.sizes.map(size => (
-                    <button
-                      key={size}
-                      type="button"
-                      onClick={() => setSelectedSize(size)}
-                      className={`text-xs px-2.5 py-1 rounded-lg border transition-colors ${
-                        selectedSize === size 
-                          ? 'bg-emerald-600 text-white border-emerald-500 font-semibold' 
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      {size}
-                    </button>
-                  ))}
+              {/* Step 1: Preparation Style / Size Options */}
+              {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                      Preparation Style / Size
+                    </span>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                      Required
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    {selectedProduct.sizes.map(style => {
+                      const isSelected = customizerPrep === style;
+                      return (
+                        <button
+                          key={style}
+                          type="button"
+                          onClick={() => {
+                            setCustomizerPrep(style);
+                            setSelectedSize(style);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-semibold shadow-xs ring-1 ring-emerald-500/30'
+                              : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className={`w-4 h-4 rounded-full flex items-center justify-center border text-[9px] ${
+                              isSelected ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-slate-300'
+                            }`}>
+                              {isSelected && '✓'}
+                            </span>
+                            {style}
+                          </span>
+                          {style.includes('+ $') && (
+                            <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                              {style.split('+')[1] ? `+${style.split('+')[1]}` : ''}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <button
-                onClick={() => handleAddToCart(selectedProduct, selectedSize, selectedColor)}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-md shadow-emerald-600/20"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                Add to WhatsApp Bag
-              </button>
+              {/* Step 2: Extras & Add-ons Checklist */}
+              {(() => {
+                const availableAddons = (selectedProduct.colors && selectedProduct.colors.length > 0)
+                  ? selectedProduct.colors
+                  : [
+                      'Extra Truffle Glaze (+ $4)',
+                      'Charred Asparagus Spear (+ $5)',
+                      'Garlic Rosemary Herb Dip (+ $2.50)'
+                    ];
+
+                return (
+                  <div className="space-y-1.5 pt-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
+                        Select Extras & Add-ons
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium">
+                        Optional
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {availableAddons.map(addon => {
+                        const isChecked = selectedAddons.includes(addon);
+                        return (
+                          <button
+                            key={addon}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAddons(prev => 
+                                isChecked ? prev.filter(a => a !== addon) : [...prev, addon]
+                              );
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-xs text-left transition-all cursor-pointer ${
+                              isChecked
+                                ? 'bg-emerald-50/70 border-emerald-500 text-emerald-950 font-medium shadow-xs'
+                                : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`w-4 h-4 rounded-md flex items-center justify-center border text-[10px] ${
+                                isChecked ? 'bg-emerald-600 border-emerald-600 text-white font-bold' : 'border-slate-300 bg-white'
+                              }`}>
+                                {isChecked && '✓'}
+                              </span>
+                              <span>{addon.replace(/\s*\(\+.*?\)/, '')}</span>
+                            </span>
+                            <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                              {addon.includes('+') ? addon.substring(addon.indexOf('+')) : '+ $0'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Quantity Stepper & Add to Order Bar */}
+              <div className="pt-2 border-t border-slate-100 space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold text-slate-700">Quantity</span>
+                  <div className="flex items-center gap-3 bg-slate-100 rounded-xl px-2.5 py-1 border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setCustomizerQty(prev => Math.max(1, prev - 1))}
+                      className="w-5 h-5 rounded-md bg-white text-slate-700 font-bold flex items-center justify-center hover:bg-slate-200 text-xs shadow-xs cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <span className="font-mono font-bold text-xs text-slate-900 w-4 text-center">
+                      {customizerQty}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCustomizerQty(prev => prev + 1)}
+                      className="w-5 h-5 rounded-md bg-white text-slate-700 font-bold flex items-center justify-center hover:bg-slate-200 text-xs shadow-xs cursor-pointer"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddCustomizedToCart}
+                  className="w-full py-3 bg-[#008069] hover:bg-[#00705c] active:bg-[#006050] text-white rounded-xl text-xs font-bold flex items-center justify-between px-4 transition-all shadow-md shadow-emerald-900/10 cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Add to Order</span>
+                  </span>
+                  <span className="font-mono text-sm tracking-tight font-extrabold bg-white/20 px-2 py-0.5 rounded-lg">
+                    ${customizerTotalPrice.toFixed(2)} →
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         )}
