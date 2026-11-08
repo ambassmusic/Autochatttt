@@ -1273,39 +1273,25 @@ export class WhatsAppManager {
       `• Reply *CHECKOUT* to finalize your order\n` +
       `• Ask our 24/7 AI concierge any question!`;
 
-    try {
-      // Dispatches the full visual store cover card with complete catalog and web link
-      await this.sendMessage(cleanId, customerJid, {
-        image: { url: heroCoverUrl },
-        caption: fullCatalogCaption,
-        contextInfo: {
-          externalAdReply: {
-            title: `🟢 ${storeMetadata.store_name} — WhatsApp Store`,
-            body: "Tap to open interactive storefront, visual menu & cart",
-            mediaType: 1,
-            renderLargerThumbnail: true,
-            showAdAttribution: true,
-            sourceUrl,
-            thumbnailUrl: verifiedThumbnail
-          } as any
-        }
-      });
-    } catch (err) {
-      console.warn('[WhatsAppManager] Media cover delivery notice, falling back to rich text payload:', err);
-      await this.sendMessage(cleanId, customerJid, {
-        text: fullCatalogCaption,
-        contextInfo: {
-          externalAdReply: {
-            title: `🟢 ${storeMetadata.store_name} — WhatsApp Store`,
-            body: "Tap to open interactive storefront, visual menu & cart",
-            mediaType: 1,
-            renderLargerThumbnail: true,
-            showAdAttribution: true,
-            sourceUrl,
-            thumbnailUrl: verifiedThumbnail
-          } as any
-        }
-      });
+    const catalogPayload = {
+      text: fullCatalogCaption,
+      contextInfo: {
+        externalAdReply: {
+          title: `🟢 ${storeMetadata.store_name} — WhatsApp Store`,
+          body: "Tap to open interactive storefront, visual menu & cart",
+          mediaType: 1,
+          renderLargerThumbnail: true,
+          showAdAttribution: true,
+          sourceUrl,
+          thumbnailUrl: verifiedThumbnail
+        } as any
+      }
+    };
+
+    const sendRes = await this.sendMessage(cleanId, customerJid, catalogPayload);
+    if (!sendRes.success) {
+      console.warn('[WhatsAppManager] ExternalAdReply notice, sending clean text fallback...');
+      await this.sendMessage(cleanId, customerJid, fullCatalogCaption);
     }
   }
 
@@ -1326,13 +1312,12 @@ export class WhatsAppManager {
     const appBaseUrl = process.env.RENDER_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://onrender.com';
     const storeUrl = `${appBaseUrl}/store/${cleanId}`;
 
-    await this.sendMessage(cleanId, targetJid, {
-      image: { url: publicImageUrl },
-      caption,
+    const sendRes = await this.sendMessage(cleanId, targetJid, {
+      text: caption,
       contextInfo: {
         externalAdReply: {
           title: product.name,
-          body: `${currencySymbol}${Number(product.price || 0).toLocaleString()} - View in Online Store`,
+          body: `${currencySymbol}${Number(product.price || 0).toLocaleString()} — Tap to View in Online Store`,
           mediaType: 1,
           renderLargerThumbnail: true,
           showAdAttribution: true,
@@ -1341,6 +1326,10 @@ export class WhatsAppManager {
         } as any
       }
     });
+
+    if (!sendRes.success) {
+      await this.sendMessage(cleanId, targetJid, caption);
+    }
   }
 
   /* ========================================================================= */

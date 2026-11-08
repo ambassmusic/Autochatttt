@@ -95,9 +95,9 @@ class UserQueueManager {
         console.warn(`[AntiBanQueue:${this.userId}] Could not send 'composing' presence:`, presenceErr);
       }
 
-      // Natural typing simulation delay based on text length (min 800ms, max 2500ms)
+      // Natural typing simulation delay based on text length (min 350ms, max 1200ms)
       const textLength = typeof task.content === 'object' && 'text' in task.content ? (task.content.text?.length || 10) : 10;
-      const simulatedTypingMs = Math.min(2500, Math.max(800, textLength * 25));
+      const simulatedTypingMs = Math.min(1200, Math.max(350, textLength * 10));
       await new Promise(r => setTimeout(r, simulatedTypingMs));
 
       // 2. Dispatch actual message through the Baileys socket
@@ -114,11 +114,10 @@ class UserQueueManager {
       this.totalSent++;
       this.lastSentAt = timestamp;
 
-      // 3. MANDATORY ANTI-BAN RANDOMIZED PAUSE:
-      // Real mathematical random range between 3,000ms and 7,000ms to safeguard SaaS accounts from Meta pattern-detection bans
-      const mandatoryDelayMs = Math.floor(Math.random() * (7000 - 3000 + 1)) + 3000;
+      // 3. Natural inter-message cadence (1,200ms - 2,500ms)
+      const mandatoryDelayMs = Math.floor(Math.random() * (2500 - 1200 + 1)) + 1200;
       this.lastDelayMs = mandatoryDelayMs;
-      console.log(`[AntiBanQueue:${this.userId}] Message sent successfully (${messageId}). Enforcing ${mandatoryDelayMs}ms anti-ban delay...`);
+      console.log(`[AntiBanQueue:${this.userId}] Message sent successfully (${messageId}). Cadence delay: ${mandatoryDelayMs}ms`);
 
       // Resolve task promise to caller
       task.resolve({
@@ -128,7 +127,7 @@ class UserQueueManager {
         antiBanDelayMs: mandatoryDelayMs
       });
 
-      // Enforce the dynamic 3-7s pause BEFORE taking the next item from the queue
+      // Enforce brief pause before next item
       await new Promise(r => setTimeout(r, mandatoryDelayMs));
 
     } catch (err: any) {
